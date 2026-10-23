@@ -1,0 +1,33 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "DeskDisplay: Build",
+      "type": "process", "command": "pwsh",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/scripts/idf.ps1", "build"],
+      "group": {"kind": "build", "isDefault": true}, "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "DeskDisplay: Flash COM4",
+      "type": "process", "command": "pwsh",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/scripts/idf.ps1", "-p", "COM4", "flash"],
+      "problemMatcher": ["$gcc"]
+    },
+    {
+      "label": "DeskDisplay: Monitor COM4",
+      "type": "process", "command": "pwsh",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/scripts/idf.ps1", "-p", "COM4", "monitor"],
+      "problemMatcher": []
+    },
+    {
+      "label": "DeskDisplay: Sync clock",
+      "type": "process", "command": "${workspaceFolder}/.tools/host-python/Scripts/python.exe",
+      "args": ["${workspaceFolder}/scripts/device.py", "sync"], "problemMatcher": []
+    },
+    {
+      "label": "DeskDisplay: Speaker test",
+      "type": "process", "command": "${workspaceFolder}/.tools/host-python/Scripts/python.exe",
+      "args": ["${workspaceFolder}/scripts/device.py", "sound"], "problemMatcher": []
+    }
+  ]
+}

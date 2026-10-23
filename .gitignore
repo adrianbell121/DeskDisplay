@@ -1,0 +1,39 @@
+# ESP-IDF
+build/
+sdkconfig.old
+managed_components/
+
+# Editor-specific
+.cache/
+.vscode/
+*.code-workspace
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Project-specific
+*.bin
+*.elf
+*.map
+*.idx
+# Environmental Variables
+.env
+
+# VS Code
+.vscode/
+
+# ESP-IDF
+build/
+sdkconfig
+sdkconfig.old
+managed_components/
+.tools/
+backups/
+artifacts/
+__pycache__/
+*.pyc
+!.vscode/
+.vscode/*
+!.vscode/tasks.json
+!.vscode/settings.json

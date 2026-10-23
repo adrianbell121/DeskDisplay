@@ -1,0 +1,10 @@
+idf_component_register(
+    SRCS
+        "Font_5x7/font_5x7.c"
+        "CN_Font/Bitmap_Font_18px.c"
+    INCLUDE_DIRS
+        "Font_5x7"
+        "CN_Font"
+    REQUIRES
+        lvgl
+)

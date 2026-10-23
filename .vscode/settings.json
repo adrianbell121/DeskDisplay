@@ -1,0 +1,7 @@
+{
+  "cmake.configureOnOpen": false,
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+  "files.associations": {"*.h": "c"},
+  "files.exclude": {".tools": true},
+  "search.exclude": {".tools": true, "build": true, "managed_components": true, "backups": true}
+}
