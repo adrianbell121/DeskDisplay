@@ -1,39 +1,30 @@
-# ESP-IDF
-build/
-sdkconfig.old
-managed_components/
-
-# Editor-specific
-.cache/
-.vscode/
-*.code-workspace
-
-# OS-specific
-.DS_Store
-Thumbs.db
-
-# Project-specific
+# ESP-IDF generated configuration and build output
+/build/
+/managed_components/
+/sdkconfig
+/sdkconfig.old
 *.bin
 *.elf
 *.map
 *.idx
-# Environmental Variables
-.env
 
-# VS Code
-.vscode/
-
-# ESP-IDF
-build/
-sdkconfig
-sdkconfig.old
-managed_components/
-.tools/
-backups/
-artifacts/
+# Local tools and generated captures
+/.tools/
+/artifacts/
+/backups/
+.cache/
 __pycache__/
-*.pyc
-!.vscode/
-.vscode/*
-!.vscode/tasks.json
-!.vscode/settings.json
+*.py[cod]
+
+# Keep shared VS Code tasks and settings
+/.vscode/*
+!/.vscode/tasks.json
+!/.vscode/settings.json
+*.code-workspace
+
+# Local secrets and OS metadata
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db

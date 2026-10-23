@@ -1,55 +1,61 @@
-# Waveshare ESP32-S3-RGB-Matrix Project Examples
+# DeskDisplay
 
-[中文](README_ZH.md)
+Custom ESP-IDF 5.5.2 / LVGL 9.3 firmware for a Waveshare ESP32-S3-RGB-Matrix
+(32 MB flash, 16 MB PSRAM) driving one 64 x 64 HUB75 panel.
 
-ESP32-S3-RGB-Matrix is a high‑performance LED matrix driver board designed for HUB75 RGB panels. It is built around the ESP32-S3-N32R16 MCU with large Flash/PSRAM, and integrates rich peripherals including RTC, IMU, Micro SD card slot, low‑power audio codec, and dual microphones. It can simultaneously cover colorful graphics display, voice interaction, and IoT application scenarios.
+The display includes a pixel clock with an animated cyan ribbon, an orbit
+animation, and green pixel rain. The onboard ES8311 audio path plays a short
+notification chime. Calendar, weather, and timer integrations are future work.
 
-- https://www.waveshare.net/shop/ESP32-S3-RGB-Matrix.htm
-- https://docs.waveshare.net/ESP32-S3-RGB-Matrix/
+## Build and use
 
-![Product Image](./assets/Product-1.webp)
----
+Open this repository root in VS Code. On a fresh checkout, install Git and Python
+3.11, then run these commands from the repository root:
 
-## 🔧 Setup
+```powershell
+.\scripts\setup.ps1
+.\scripts\idf.ps1 build
+.\scripts\idf.ps1 -p COM4 flash
+.\.tools\host-python\Scripts\python.exe scripts/device.py sync
+```
 
-You can find detailed hardware resources, development environment setup, and quick‑start examples on the ESP32-S3-RGB-Matrix product wiki page.
+The local tools are already installed in this workspace. Use `Ctrl+Shift+B` to
+build, or **Terminal > Run Task** for flashing, monitoring, clock sync, and the
+speaker test. Close the serial monitor before another task uses the USB port.
 
----
+- Tap **BOOT** to cycle clock, orbit, and rain.
+- Hold **BOOT** for one second to play the speaker test.
+- Press **RST** to return to the clock at 25% brightness.
 
-## 🛠️ Contributing
+## Project layout
 
-We welcome your contributions! You can help in the following ways:
+```text
+main/
+  main.c              Startup, USB commands, and button handling
+  board/              Display, audio, RTC, and board pin definitions
+  ui/                 LVGL screens and animations
+scripts/              Toolchain setup, builds, and USB controls
+docs/
+  firmware.md         Configuration, controls, and development notes
+  hardware/           Board schematic and mechanical dimensions
+  images/             Captures of the custom display modes
+.vscode/              Shared build tasks and editor settings
+CMakeLists.txt        ESP-IDF project entry point
+sdkconfig.defaults   Board and library configuration
+partitions.csv       Flash partition layout
+dependencies.lock    Resolved component versions
+```
 
-1. Fork this repository.  
-2. Create a new branch for your feature or bug fix.  
-3. Commit your changes with a clear and descriptive message.  
-4. Open a Pull Request for review.  
+ESP-IDF expects `main/` and the project configuration at the repository root.
+Downloaded tools (`.tools/`), build output (`build/`), managed components, and
+runtime configuration stay local and are hidden in the VS Code Explorer.
 
----
+See the [firmware guide](docs/firmware.md) for USB commands, clock setup, speaker
+volume, hardware references, and extension points.
 
-## 🧩 Issues & Support
+## Upstream references
 
-If you run into any problems:
-
-- First check the issues section at `https://gitee.com/waveshare/ESP32-S3-RGB-Matrix/issues`.  
-- Create a new issue and provide detailed information (symptoms, reproduction steps, hardware environment, etc.).  
-- Refer to the documentation and example projects for troubleshooting tips.  
-- Contact the Waveshare team and provide your order number for technical support.  
-
----
-
-## 📜 License
-
-This repository is licensed under the Apache License. For details, please refer to the [LICENSE](LICENSE) file.
-
----
-
-## 🙌 Acknowledgements
-
-- Thanks to Waveshare for providing the ESP32-S3-RGB-Matrix hardware platform and software support.  
-- Thanks to Espressif for their continuous support.  
-- Thanks to all open‑source contributors who make these projects possible.  
-
----
-
-Thank you for using ESP32-S3-RGB-Matrix!
+Board wiring and hardware documentation originate from
+[Waveshare's ESP32-S3-RGB-Matrix repository](https://github.com/waveshareteam/ESP32-S3-RGB-Matrix).
+The project retains the upstream [Apache 2.0 license](LICENSE).
+Managed components retain their respective licenses.

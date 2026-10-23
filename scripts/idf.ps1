@@ -4,7 +4,7 @@ $projectRoot = Split-Path $PSScriptRoot -Parent
 $env:IDF_PATH = Join-Path $projectRoot '.tools\esp-idf'
 $env:IDF_TOOLS_PATH = Join-Path $projectRoot '.tools\espressif'
 $idfPython = Join-Path $env:IDF_TOOLS_PATH 'python_env\idf5.5_py3.11_env\Scripts\python.exe'
-if (-not (Test-Path -LiteralPath $idfPython)) { throw 'ESP-IDF is not installed. See FIRMWARE.md.' }
+if (-not (Test-Path -LiteralPath $idfPython)) { throw 'ESP-IDF is not installed. See docs/firmware.md.' }
 # idf_tools supplies the compiler/CMake/Ninja paths; avoid depending on shell activation.
 $exports = & $idfPython "$env:IDF_PATH\tools\idf_tools.py" export --format key-value
 if ($LASTEXITCODE -ne 0) { throw 'ESP-IDF tool environment failed.' }

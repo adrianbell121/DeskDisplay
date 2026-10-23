@@ -2,6 +2,14 @@
   "cmake.configureOnOpen": false,
   "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
   "files.associations": {"*.h": "c"},
-  "files.exclude": {".tools": true},
-  "search.exclude": {".tools": true, "build": true, "managed_components": true, "backups": true}
+  "files.exclude": {
+    ".tools": true,
+    "build": true,
+    "managed_components": true,
+    "artifacts": true,
+    "sdkconfig": true,
+    "sdkconfig.old": true,
+    "**/__pycache__": true
+  },
+  "search.exclude": {".tools": true, "build": true, "managed_components": true, "artifacts": true}
 }
