@@ -21,12 +21,14 @@ static uint16_t capture[64 * 64];
 static void status(void)
 {
     const char *mode = "busy";
-    if (lvgl_port_lock(100)) { mode = desk_ui_mode_name(); lvgl_port_unlock(); }
+    desk_ui_state_t ui = {.minute = -1, .rollover_ms = -1};
+    if (lvgl_port_lock(100)) { mode = desk_ui_mode_name(); desk_ui_get_state(&ui); lvgl_port_unlock(); }
     printf("STATUS version=0.1.0 panel=64x64 mode=%s brightness=%u clock=%s audio=%s frames=%" PRIu32
-           " heap=%u min_heap=%u uptime=%" PRIi64 " utc=%" PRIi64 "\n",
+           " heap=%u min_heap=%u uptime=%" PRIi64 " utc=%" PRIi64
+           " preview=%u ui_minute=%d rollover_ms=%d\n",
            mode, brightness, board_clock_valid() ? "set" : "unset", esp_err_to_name(board_audio_status()),
            board_display_frames(), (unsigned)esp_get_free_heap_size(), (unsigned)esp_get_minimum_free_heap_size(),
-           esp_timer_get_time() / 1000000, (int64_t)time(NULL));
+           esp_timer_get_time() / 1000000, (int64_t)time(NULL), ui.preview, ui.minute, ui.rollover_ms);
     fflush(stdout);
 }
 static bool number(const char *text, int64_t *out)
@@ -44,7 +46,7 @@ static void command(char *line)
     if (arg) *arg++ = '\0';
     int64_t value;
     if (!strcmp(line, "help")) {
-        puts("COMMANDS status | time <UTC epoch> | mode clock|orbit|rain | brightness 0..100 | sound [0..85] | test | capture");
+        puts("COMMANDS status | time <UTC epoch> | mode clock|cup|drain|hourglass|tide|ripple | preview <face|off> [0..64999 ms] | brightness 0..100 | sound [0..85] | test | capture");
     } else if (!strcmp(line, "status")) status();
     else if (!strcmp(line, "time") && arg && number(arg, &value)) {
         esp_err_t err = board_clock_set((time_t)value);
@@ -54,7 +56,23 @@ static void command(char *line)
         if (lvgl_port_lock(1000)) {
             bool ok = desk_ui_mode(arg);
             lvgl_port_unlock();
-            puts(ok ? "MODE OK" : "ERROR use clock, orbit, or rain");
+            puts(ok ? "MODE OK" : "ERROR use clock, cup, drain, hourglass, tide, or ripple");
+        } else puts("ERROR display busy");
+    } else if (!strcmp(line, "preview") && arg) {
+        char *sample = strchr(arg, ' ');
+        value = -1;
+        if (sample) {
+            *sample++ = '\0';
+            if (!number(sample, &value) || value < 0 || value > 64999) {
+                puts("ERROR preview sample must be 0..64999 ms");
+                fflush(stdout);
+                return;
+            }
+        }
+        if (lvgl_port_lock(1000)) {
+            bool ok = desk_ui_preview(arg, (int)value);
+            lvgl_port_unlock();
+            puts(ok ? "PREVIEW OK" : "ERROR preview needs a new face and a synced clock; use off to exit");
         } else puts("ERROR display busy");
     } else if (!strcmp(line, "brightness") && arg && number(arg, &value) && value >= 0 && value <= 100) {
         if (lvgl_port_lock(1000)) {

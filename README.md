@@ -3,9 +3,16 @@
 Custom ESP-IDF 5.5.2 / LVGL 9.3 firmware for a Waveshare ESP32-S3-RGB-Matrix
 (32 MB flash, 16 MB PSRAM) driving one 64 x 64 HUB75 panel.
 
-The display includes a pixel clock with an animated cyan ribbon, an orbit
-animation, and green pixel rain. The onboard ES8311 audio path plays a short
-notification chime. Calendar, weather, and timer integrations are future work.
+Six clock faces share the RTC-backed time: the original cyan-ribbon clock,
+a spilling cup, a draining water tank, a flipping water hourglass, a lighthouse
+with a breaking wave, and a ripple pool. Each new face builds over the real
+minute, then animates the minute change over three seconds. The original face
+keeps its original layout and animation. Calendar, weather, and timer
+integrations are future work.
+
+![Six clock faces](docs/images/clock-faces.png)
+
+[Animated comparison](docs/images/clock-faces.gif) (accelerated filling, normal rollover timing).
 
 ## Build and use
 
@@ -23,7 +30,7 @@ The local tools are already installed in this workspace. Use `Ctrl+Shift+B` to
 build, or **Terminal > Run Task** for flashing, monitoring, clock sync, and the
 speaker test. Close the serial monitor before another task uses the USB port.
 
-- Tap **BOOT** to cycle clock, orbit, and rain.
+- Tap **BOOT** to cycle clock, cup, drain, hourglass, tide, and ripple.
 - Hold **BOOT** for one second to play the speaker test.
 - Press **RST** to return to the clock at 25% brightness.
 
@@ -52,6 +59,15 @@ runtime configuration stay local and are hidden in the VS Code Explorer.
 
 See the [firmware guide](docs/firmware.md) for USB commands, clock setup, speaker
 volume, hardware references, and extension points.
+
+Preview a complete fill-and-rollover cycle in 16 seconds without changing the RTC:
+
+```powershell
+.\.tools\host-python\Scripts\python.exe scripts/device.py preview drain
+.\.tools\host-python\Scripts\python.exe scripts/device.py preview off
+```
+
+Preview returns to live time automatically. `mode clock` selects the original face.
 
 ## Upstream references
 
