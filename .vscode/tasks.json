@@ -2,6 +2,12 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "DeskDisplay: Preview faces",
+      "type": "process", "command": "pwsh",
+      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/scripts/preview.ps1"],
+      "problemMatcher": []
+    },
+    {
       "label": "DeskDisplay: Build",
       "type": "process", "command": "pwsh",
       "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}/scripts/idf.ps1", "build"],

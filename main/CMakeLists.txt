@@ -5,7 +5,7 @@ idf_component_register(
         "board/audio.c"
         "board/clock.c"
         "ui/desk_ui.c"
-        "ui/clock_faces.c"
+        "ui/island_face.c"
     INCLUDE_DIRS "." "board" "ui"
     REQUIRES lvgl__lvgl esphome__esp-hub75 espressif__esp_lvgl_port
              espressif__esp_codec_dev esp_driver_gpio esp_driver_i2c

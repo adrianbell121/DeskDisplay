@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101314">
+  <title>DeskDisplay · Face Lab</title>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="engine.js"></script>
+  <script defer src="workspace.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <header class="masthead">
+    <a class="brand" href="./"><span class="brand-icon" aria-hidden="true">▦</span> DeskDisplay <span class="brand-sub">/ FACE LAB</span></a>
+    <div class="file-actions"><button id="import">Import</button><button id="export">Export workspace ↗</button><input id="import-file" type="file" accept="application/json,.json" hidden></div>
+  </header>
+  <main>
+    <section class="intro"><div><p class="eyebrow">THE SKETCHBOOK BEFORE THE CIRCUIT BOARD</p><h1>A little space to experiment.</h1><p class="subhead">Compare clock faces. Find the motion. Build the ones you love.</p></div><span class="local-badge"><i></i> Local & offline</span></section>
+    <section class="transport" aria-label="Preview playback">
+      <div class="playback"><button id="play" class="primary" aria-label="Pause animation">Ⅱ Pause</button><button id="step" title="Pause and advance one frame">Step</button><button id="restart" title="Restart animation timeline">↺</button><label>Speed <select id="speed"><option value="0.25">¼×</option><option value="0.5">½×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label></div>
+      <div class="time-controls"><label>Clock <select id="clock-mode"><option value="fixed">Sample time</option><option value="live">Computer time</option></select></label><input id="sample-time" type="datetime-local" step="1" aria-label="Sample date and time"><label class="check"><input id="advance-clock" type="checkbox"> Tick clock</label></div>
+      <div class="timeline"><label for="timeline">Animation <output id="elapsed">00:00.0</output></label><input id="timeline" type="range" min="0" max="120" step="0.033333" value="0"><span>2 min</span></div>
+    </section>
+    <div class="workspace">
+      <section class="collection" aria-label="Clock face gallery">
+        <div class="collection-bar"><div class="tabs" role="group" aria-label="Gallery filter"><button id="all" aria-pressed="true">All faces <span id="all-count">6</span></button><button id="shortlist" aria-pressed="false">Shortlist <span id="short-count">0</span></button></div><label class="view-select">View <select id="view"><option value="pixels">Crisp pixels</option><option value="led">LED dots</option></select></label></div>
+        <div id="gallery" class="gallery"></div>
+        <div id="empty" class="empty" hidden><h2>Your shortlist starts here.</h2><p>Star a face to keep it in the running.</p><button id="show-all">Browse all faces</button></div>
+        <p class="gallery-foot">64 × 64 pixels · RGB565 color · synchronized at 30 frames/sec</p>
+      </section>
+      <aside class="inspector" aria-label="Selected face settings">
+        <div class="inspector-heading"><p class="eyebrow">ON THE DRAWING BOARD</p><h2 id="selected-title">Island</h2><p id="selected-description"></p></div>
+        <div class="inspector-body">
+          <label class="field">Design name<input id="design-name" type="text" maxlength="60"></label>
+          <fieldset><legend>Palette</legend><div class="colors"><label><input id="ink" type="color">Digits</label><label><input id="accent" type="color">Accent</label><label><input id="background" type="color">Backdrop</label></div></fieldset>
+          <fieldset><legend>Layout</legend><label class="field">Digits<select id="digit-style"><option value="segment">Rounded segments</option><option value="block">Pixel blocks</option></select></label><div class="two-col"><label class="field">Time format<select id="format"><option value="12">12 hour</option><option value="24">24 hour</option></select></label><label class="field">Clock Y <output id="time-y-value"></output><input id="time-y" type="range" min="11" max="25" step="1"></label></div><label class="check"><input id="show-date" type="checkbox"> Show date</label><label class="check"><input id="show-seconds" type="checkbox"> Show seconds track</label></fieldset>
+          <fieldset><legend>Movement</legend><label class="range-label" for="motion">Scene speed <output id="motion-value"></output></label><input id="motion" type="range" min="0" max="2" step="0.1"><label class="range-label" for="scene-y">Scene position <output id="scene-y-value"></output></label><input id="scene-y" type="range" min="-5" max="5" step="1"></fieldset>
+          <fieldset><legend>Review notes</legend><textarea id="notes" rows="3" maxlength="2000" placeholder="Keep the boat. Try smaller digits. Slower birds…" aria-label="Review notes"></textarea></fieldset>
+          <button id="save-variation" class="primary wide">＋ Save as variation</button><div class="two-col action-row"><button id="snapshot">Save PNG</button><button id="copy-brief">Copy build brief</button></div><div class="two-col action-row"><button id="reset">Reset face</button><button id="delete" hidden>Delete variation</button></div>
+        </div>
+        <div class="inspector-footer"><span class="save-dot"></span><span id="save-status">Saved in this browser</span></div>
+      </aside>
+    </div>
+    <footer><p><strong>Concept previews.</strong> Ribbon and Island are adapted from the firmware. Typography and animation may differ. Confirm brightness, flicker, and performance on the panel after selection.</p><label class="brightness" for="brightness">Preview brightness <input id="brightness" type="range" min="15" max="100" value="100"><output id="brightness-value">100%</output></label></footer>
+  </main>
+  <div id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

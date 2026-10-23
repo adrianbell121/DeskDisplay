@@ -3,18 +3,21 @@
 Custom ESP-IDF 5.5.2 / LVGL 9.3 firmware for a Waveshare ESP32-S3-RGB-Matrix
 (32 MB flash, 16 MB PSRAM) driving one 64 x 64 HUB75 panel.
 
-Six clock faces share the RTC-backed time: the original cyan-ribbon clock,
-a spilling cup, a draining water tank, a flipping water hourglass, a lighthouse
-with a breaking wave, and a ripple pool. Each new face builds over the real
-minute, then animates the minute change over three seconds. The original face
-keeps its original layout and animation. Calendar, weather, and timer
-integrations are future work.
+Two clock faces share the RTC-backed time. The original cyan ribbon clock keeps
+its layout and animation. The new island face uses a small mixed-case date,
+rounded clock digits with inline AM/PM, two coconut palms, a gently rocking
+white-sailed boat, and tiny birds that leave and return every 20–30 seconds.
+Calendar, weather, and timer integrations are future work.
 
-![Six clock faces](docs/images/clock-faces.png)
-
-[Animated comparison](docs/images/clock-faces.gif) (accelerated filling, normal rollover timing).
+![Island face](docs/images/island.png)
 
 ## Build and use
+
+To explore designs on your computer before building firmware, open
+[`preview/index.html`](preview/index.html), or run `.\scripts\preview.ps1` and
+visit <http://127.0.0.1:8765>. Face Lab offers six animated 64×64 concepts,
+layout and color controls, saved variations, a shortlist, PNG snapshots, and
+exportable build briefs. See the [preview guide](preview/README.md).
 
 Open this repository root in VS Code. On a fresh checkout, install Git and Python
 3.11, then run these commands from the repository root:
@@ -30,7 +33,7 @@ The local tools are already installed in this workspace. Use `Ctrl+Shift+B` to
 build, or **Terminal > Run Task** for flashing, monitoring, clock sync, and the
 speaker test. Close the serial monitor before another task uses the USB port.
 
-- Tap **BOOT** to cycle clock, cup, drain, hourglass, tide, and ripple.
+- Tap **BOOT** to switch between the original clock and island face.
 - Hold **BOOT** for one second to play the speaker test.
 - Press **RST** to return to the clock at 25% brightness.
 
@@ -60,14 +63,12 @@ runtime configuration stay local and are hidden in the VS Code Explorer.
 See the [firmware guide](docs/firmware.md) for USB commands, clock setup, speaker
 volume, hardware references, and extension points.
 
-Preview a complete fill-and-rollover cycle in 16 seconds without changing the RTC:
+Select a face through USB:
 
 ```powershell
-.\.tools\host-python\Scripts\python.exe scripts/device.py preview drain
-.\.tools\host-python\Scripts\python.exe scripts/device.py preview off
+.\.tools\host-python\Scripts\python.exe scripts/device.py mode island
+.\.tools\host-python\Scripts\python.exe scripts/device.py mode clock
 ```
-
-Preview returns to live time automatically. `mode clock` selects the original face.
 
 ## Upstream references
 
