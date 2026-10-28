@@ -1,0 +1,10 @@
+const fs=require('node:fs'),path=require('node:path'),S=require('../preview/scene.js');
+const str={type:'string'},color={type:'string',pattern:'^#[0-9a-fA-F]{6}$'},integer=(min,max)=>({type:'integer',minimum:min,maximum:max}),number=(min,max)=>({type:'number',minimum:min,maximum:max});
+const object=properties=>({type:'object',properties,required:Object.keys(properties),additionalProperties:false});
+const sprite=object({width:integer(1,64),height:integer(1,64),palette:{type:'array',items:color,minItems:1,maxItems:15},frames:{type:'array',items:{type:'string',pattern:'^[0-9a-fA-F]+$',maxLength:4096},minItems:1,maxItems:32},fps:integer(1,30)});
+const key=object({t:number(0,16),x:number(-64,64),y:number(-64,64),scale:number(.1,4),opacity:number(0,1)});
+const animation=object({duration:number(1,16),loop:{type:'boolean'},easing:{type:'string',enum:['linear','smooth','step']},keys:{type:'array',items:key,maxItems:32}});
+const widget=object({name:str,islandPart:{anyOf:[integer(0,11),{type:'null'}]},type:{type:'string',enum:S.types},x:integer(-63,63),y:integer(-63,63),w:integer(1,64),h:integer(1,64),color,secondary:color,text:str,font:{type:'string',enum:['segment','block']},format:{type:'string',enum:['12','24']},dateFormat:str,binding:{type:'string',enum:['none','clock.date','weather.current','weather.forecast','calendar.events','weather.tempF','weather.precipProbability']},prefix:str,suffix:str,eventLimit:integer(2,3),animation,effect:{type:'string',enum:S.effects},speed:number(0,4),amount:number(0,10),period:integer(1,16),sprite:{anyOf:[sprite,{type:'null'}]}});
+const widgets={type:'array',items:widget,maxItems:32};
+const schema=object({explanation:str,widgets,face:{anyOf:[object({name:str,background:color,widgets}),{type:'null'}]}});
+fs.writeFileSync(path.join(__dirname,'../preview/widget-response.schema.json'),JSON.stringify(schema,null,2)+'\n');

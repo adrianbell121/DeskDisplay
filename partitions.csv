@@ -2,4 +2,5 @@
 nvs, data, nvs, 0x9000, 0x6000
 phy_init, data, phy, 0xf000, 0x1000
 factory, app, factory, 0x10000, 4M
-# Remaining flash is reserved for future OTA slots and assets.
+scenes, data, 0x40, 0x410000, 1M
+# Two 512 KB scene slots; remaining flash is reserved.

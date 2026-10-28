@@ -5,13 +5,14 @@
 #include <time.h>
 #include "board.h"
 #include "island_face.h"
+#include "scene_player.h"
 #include "desk_ui.h"
 #include "esp_timer.h"
 #include "lvgl.h"
 
-enum { CLOCK, ISLAND, FACE_COUNT, TEST = FACE_COUNT };
-static const char *names[] = {"clock", "island", "test"};
-static int mode;
+enum { CLOCK, ISLAND, CUSTOM, FACE_COUNT, TEST = FACE_COUNT };
+static const char *names[] = {"clock", "island", "custom", "test"};
+static int mode = ISLAND;
 static int64_t test_until;
 static uint16_t pixels[64 * 64] __attribute__((aligned(4)));
 static lv_obj_t *canvas, *heading, *detail, *footer;
@@ -82,6 +83,7 @@ static void render(lv_timer_t *timer)
     memset(pixels, 0, sizeof(pixels));
     if (mode == CLOCK) clock_face(&t, valid, phase);
     if (mode == ISLAND) island_face_render(pixels, &t, valid, now_us);
+    if (mode == CUSTOM) scene_player_render(pixels, &t, valid, now_us / 1000);
     if (mode == TEST) {
         static const uint16_t colors[] = {0xf800, 0x07e0, 0x001f, 0x8410};
         unsigned stage = (now_us / 1000000) % 4;
@@ -105,6 +107,7 @@ static void render(lv_timer_t *timer)
 }
 esp_err_t desk_ui_init(void)
 {
+    if (scene_player_ready()) mode = CUSTOM;
     lv_obj_t *screen = lv_screen_active();
     lv_obj_remove_style_all(screen);
     lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
@@ -123,11 +126,13 @@ esp_err_t desk_ui_init(void)
 bool desk_ui_mode(const char *name)
 {
     for (int i = CLOCK; i < FACE_COUNT; i++) if (strcmp(name, names[i]) == 0) {
+        if (i == CUSTOM && !scene_player_ready()) return false;
         mode = i; last_second = -1; return true;
     }
     return false;
 }
-void desk_ui_next(void) { mode = (mode + 1) % FACE_COUNT; last_second = -1; }
+void desk_ui_next(void) { mode = (mode + 1) % (scene_player_ready() ? FACE_COUNT : 2); last_second = -1; }
+void desk_ui_custom_changed(void) { mode = CUSTOM; last_second = -1; }
 const char *desk_ui_mode_name(void) { return names[mode]; }
 void desk_ui_test(void) { mode = TEST; test_until = esp_timer_get_time() + 8000000; last_second = -1; }
 void desk_ui_get_state(desk_ui_state_t *state)

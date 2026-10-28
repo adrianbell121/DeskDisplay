@@ -7,5 +7,5 @@ if (-not (Test-Path -LiteralPath $pythonPath)) {
 }
 Write-Host "DeskDisplay Face Lab: http://127.0.0.1:$Port"
 Write-Host 'Press Ctrl+C to stop. Designs are saved in your browser; Export workspace creates a portable copy.'
-& $pythonPath -m http.server $Port --bind 127.0.0.1 --directory (Join-Path $projectRoot 'preview')
+& $pythonPath (Join-Path $projectRoot 'scripts/preview_server.py') --port $Port
 exit $LASTEXITCODE

@@ -4,8 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include "esp_random.h"
+#include "esp_heap_caps.h"
 
 static uint16_t *canvas;
+static int scene_y;
 static int birds; // 0 perched, 1 departing, 2 away, 3 returning.
 static int64_t flight_start, next_flight;
 static uint32_t random_state;
@@ -13,7 +15,7 @@ static uint32_t random_state;
 static uint16_t rgb(unsigned r, unsigned g, unsigned b)
 { return ((r & 248) << 8) | ((g & 252) << 3) | (b >> 3); }
 static void dot(int x, int y, uint16_t color)
-{ if ((unsigned)x < 64 && (unsigned)y < 64) canvas[y * 64 + x] = color; }
+{ y += scene_y; if ((unsigned)x < 64 && (unsigned)y < 64) canvas[y * 64 + x] = color; }
 static void box(int x, int y, int w, int h, uint16_t color)
 { for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) dot(x + i, y + j, color); }
 static void line(int x, int y, int tx, int ty, uint16_t color)
@@ -92,27 +94,35 @@ static void digit(int n, int x, int y, uint16_t color)
     if (s & 64) box(x + 1, y + 6, 5, 2, color);
 }
 static float surface(float x, float phase)
-{ return 53 + sinf(x * .085f + phase * .65f) * 1.6f + sinf(x * .14f - phase * .45f); }
+{ return 53 + sinf(x * .085f + phase * .65f) * 1.25f + sinf(x * .14f - phase * .45f) * .75f; }
+static void frond(int x, int y, int tx, int ty, uint16_t color)
+{
+    line(x, y, tx, ty, color);
+    line(x, y + 1, tx, ty + 1, color);
+}
 static void palm(int x, int ground, int height)
 {
     int crown = ground - height;
     uint16_t trunk = rgb(147, 119, 72), leaf = rgb(66, 128, 91);
     line(x, ground, x - 2, crown, trunk);
-    line(x - 2, crown, x - 7, crown - 2, leaf);
-    line(x - 7, crown - 2, x - 9, crown, leaf);
-    line(x - 2, crown, x + 3, crown - 3, leaf);
-    line(x + 3, crown - 3, x + 5, crown - 1, leaf);
-    line(x - 2, crown, x + 3, crown + 1, leaf);
-    line(x + 3, crown + 1, x + 4, crown + 3, leaf);
-    line(x - 2, crown, x - 6, crown + 2, leaf);
+    line(x + 1, ground, x - 1, crown, rgb(115, 93, 57));
+    frond(x - 2, crown, x - 7, crown - 2, leaf);
+    frond(x - 7, crown - 2, x - 9, crown, leaf);
+    frond(x - 2, crown, x + 3, crown - 3, leaf);
+    frond(x + 3, crown - 3, x + 6, crown - 1, leaf);
+    frond(x - 2, crown, x + 3, crown + 1, leaf);
+    frond(x + 3, crown + 1, x + 5, crown + 4, leaf);
+    frond(x - 2, crown, x - 6, crown + 2, leaf);
+    frond(x - 6, crown + 2, x - 8, crown + 4, leaf);
+    frond(x - 2, crown, x - 3, crown - 4, rgb(83, 151, 100));
     dot(x - 2, crown + 2, rgb(119, 90, 54));
     dot(x, crown + 2, rgb(119, 90, 54));
 }
 static void boat(float phase)
 {
-    // Rotate the small sprite about its waterline, keeping the hull on the ribbon.
-    float angle = sinf(phase * 1.2f) * .075f;
-    float c = cosf(angle), s = sinf(angle), water = surface(47, phase);
+    // Translate the complete sprite by a single integer offset. Never rotate or
+    // round individual transformed pixels: the boat's shape stays identical.
+    int water = (int)lroundf(surface(47, phase));
     for (int y = -10; y <= 1; y++) for (int x = -5; x <= 5; x++) {
         uint16_t color = 0;
         if (y >= -9 && y <= -2 && x == 0) color = rgb(174, 161, 127);
@@ -120,7 +130,7 @@ static void boat(float phase)
         if (y >= -6 && y <= -2 && x > 0 && x <= (y + 8) / 2) color = rgb(207, 221, 213);
         if (y == 0 && x >= -5 && x <= 5) color = rgb(157, 111, 69);
         if (y == 1 && x >= -3 && x <= 3) color = rgb(113, 84, 59);
-        if (color) dot(lroundf(47 + x * c - y * s), lroundf(water - 1 + x * s + y * c), color);
+        if (color) dot(47 + x, water - 1 + y, color);
     }
 }
 static int64_t interval(void)
@@ -137,7 +147,7 @@ const char *island_bird_state(void)
 }
 int island_bird_next_ms(int64_t now_us)
 { return next_flight > now_us ? (int)((next_flight - now_us) / 1000) : 0; }
-static void draw_birds(int64_t now_us)
+static void draw_birds(int64_t now_us, int index)
 {
     if (!next_flight) {
         random_state = esp_random();
@@ -153,7 +163,7 @@ static void draw_birds(int64_t now_us)
     }
     if (birds == 2) return;
     float elapsed = (now_us - flight_start) / 1000000.0f;
-    for (int i = 0; i < 2; i++) {
+    for (int i = index; i <= index; i++) {
         float p = (elapsed - i * .35f) / 3.5f;
         p = fmaxf(0, fminf(1, p));
         if (birds == 3) p = 1 - p;
@@ -165,20 +175,25 @@ static void draw_birds(int64_t now_us)
         dot(x, y, color); dot(x - 1, y + wing, color); dot(x + 1, y + wing, color);
     }
 }
-void island_face_render(uint16_t *pixels, const struct tm *time, bool valid, int64_t now_us)
+// Canonical source rectangles also used by the dashboard. They include the
+// animation envelope, so resizing never clips the boat or the flying birds.
+const int island_element_bounds[12][4] = {
+ {5,15,49,13},{0,4,64,5},{0,59,64,5},
+ {0,53,64,11},{0,53,64,11},{0,53,64,11},
+ {6,59,28,3},{7,40,16,19},{17,44,16,15},
+ {42,48,11,16},{0,38,64,14},{0,38,64,14}
+};
+void island_element_render(uint16_t *pixels, unsigned part, const struct tm *time, bool valid, int64_t now_us)
 {
-    canvas = pixels;
-    uint16_t background = rgb(3, 7, 11), white = rgb(221, 230, 217), muted = rgb(134, 165, 158);
-    // A quiet card with four-pixel corner cut-ins; no border or decorative frame.
-    for (int y = 1; y < 63; y++) {
-        int inset = y == 1 || y == 62 ? 5 : y == 2 || y == 61 ? 3 : 1;
-        box(inset, y, 64 - inset * 2, 1, background);
-    }
+    canvas=pixels; scene_y=0;
+    memset(pixels,0,64*64*sizeof(*pixels));
+    uint16_t white = rgb(221, 230, 217), muted = rgb(134, 165, 158);
     if (valid) {
         static const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
         char date[12];
         snprintf(date, sizeof(date), "%s %d", months[time->tm_mon], time->tm_mday);
-        text(date, (64 - ((int)strlen(date) * 4 - 1)) / 2, 4, muted);
+        if (part == 1) text(date, (64 - ((int)strlen(date) * 4 - 1)) / 2, 4, muted);
+        if (part == 0) {
         int hour = time->tm_hour % 12;
         if (!hour) hour = 12;
         if (hour >= 10) digit(hour / 10, 5, 15, white);
@@ -187,20 +202,42 @@ void island_face_render(uint16_t *pixels, const struct tm *time, bool valid, int
         digit(time->tm_min % 10, 36, 15, white);
         dot(23, 19, muted); dot(23, 24, muted);
         text(time->tm_hour < 12 ? "AM" : "PM", 47, 21, muted);
+        }
     } else {
-        text("-- --", 22, 4, muted);
-        text("--:--", 22, 19, white);
+        if (part == 1) text("-- --", 22, 4, muted);
+        if (part == 0) text("--:--", 22, 19, white);
     }
-    float phase = (now_us % 3600000000LL) / 1000000.0f;
-    for (int x = 3; x <= 60; x++) {
-        int y = lroundf(surface(x, phase));
-        for (int d = 0; d < 5; d++)
-            dot(x, y + d, rgb(8, 120 / (d + 1), 144 / (d + 1)));
+    float phase=(now_us % 3600000000LL)/1000000.0f;
+    scene_y=8;
+    if(part==2) box(0,51,64,13,rgb(5,35,45));
+    if(part>=3 && part<=5) {
+        int band=part-3;
+        float timing=phase*(band==0?.8f:band==1?1.1f:1.f)+(2-band)*1.7f;
+        for(int x=0;x<64;x++) {
+            int y=(int)lroundf(surface(x,timing))-(2-band)*2;
+            for(int d=0;d<2;d++) {
+                unsigned strength=(64+band*28)/(d+1);
+                dot(x,y+d,rgb(8,strength,strength+20));
+            }
+        }
     }
-    uint16_t sand = rgb(173, 153, 102);
-    box(8, 51, 24, 1, sand); box(6, 52, 28, 1, sand);
-    box(8, 53, 25, 1, rgb(130, 118, 78));
-    palm(16, 50, 14); palm(26, 50, 10);
-    boat(phase);
-    draw_birds(now_us);
+    if(part==6) {
+        uint16_t sand=rgb(173,153,102);
+        box(8,51,24,1,sand);box(6,52,28,1,sand);box(8,53,25,1,rgb(130,118,78));
+    }
+    if(part==7)palm(16,50,14);
+    if(part==8)palm(26,50,10);
+    if(part==9)boat(phase);
+    if(part==10 || part==11)draw_birds(now_us,part-10);
+}
+void island_face_render(uint16_t *pixels, const struct tm *time, bool valid, int64_t now_us)
+{
+    static uint16_t *layer;
+    if(!layer)layer=heap_caps_calloc(4096,sizeof(*layer),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+    memset(pixels,0,4096*sizeof(*pixels));
+    if(!layer)return;
+    for(unsigned part=0;part<12;part++) {
+        island_element_render(layer,part,time,valid,now_us);
+        for(unsigned i=0;i<4096;i++)if(layer[i])pixels[i]=layer[i];
+    }
 }

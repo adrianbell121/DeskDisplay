@@ -1,76 +1,181 @@
-# DeskDisplay Face Lab
+# DeskDisplay Widget Studio
 
-A local, dependency-free sketchbook for selecting 64×64 clock faces before
-implementing them on the ESP32. Nothing connects to the board or a remote service.
+A local visual designer for a 64×64 panel. Design and animate widgets, save a
+library, create clock faces and variations, and preview data bindings without a board.
 
-## Open
+## Launch
 
-Double-click `preview/index.html`, or run from the repository root:
+From the repository root:
 
 ```powershell
 .\scripts\preview.ps1
 ```
 
-Then open <http://127.0.0.1:8765>. The server only exposes the `preview` directory
-on loopback. Use `-Port 8766` if needed. Keep the same address/port to retain the
-same browser storage. No package installation or firmware build is required.
+Open <http://127.0.0.1:8765>. Keep the same browser and address for browser-local
+saves. Export workspace creates a portable JSON backup. Existing Face Lab v1/v2
+workspaces migrate to layers; the original v1 browser entry is retained.
+Opening `index.html` directly supports local design, but AI and data backend routes
+require the server. The server binds to loopback and exposes only the preview folder.
+It does not open, enumerate, probe, or flash a board on startup.
 
-## Design workflow
+## Designer and animations
 
-1. Compare the six synchronized faces. Island and Ribbon adapt the current
-   firmware; Orbit, After rain, Alpine, and Firefly garden explore alternatives.
-2. Click a preview to edit its palette, digits, layout, and motion. Try both
-   crisp pixels and LED dots. The brightness slider approximates screen appearance;
-   it does not model panel power or the board's brightness percentage.
-3. Pause, step by 1/30 second, or scrub the first two minutes. Playback can
-   continue beyond two minutes; Restart returns to zero. Speed controls animation
-   and the optional ticking sample clock. Computer time always follows the computer.
-   Scene speed scales scene time (zero freezes the scene).
-4. Use a sample time to check 09:59 → 10:00, midnight, or long dates. Enable
-   **Tick clock** to advance it with the animation timeline. Computer time uses
-   the browser's timezone, which may differ from the board's configured timezone.
-5. Star favorites, add notes, and **Save as variation** to keep alternate settings.
-   Edits save automatically in browser storage. Reset restores the selected base
-   face's visual settings while retaining its name, notes, and shortlist status.
-6. **Export workspace** backs up all settings, notes, and variations as JSON.
-   Import merges faces and keeps existing work; changed originals become variations.
-   Import restores the exported clock/view settings. Maximum: 60 faces.
-7. **Save PNG** exports a native 64×64 RGB565-quantized frame, without the simulated
-   dots or screen brightness. **Copy build brief** gives the selected settings and
-   notes to paste into a request here. If clipboard access is blocked, it downloads
-   a text file instead. Include the workspace JSON when sharing a complete design.
+- Drag widgets onto the canvas or click Add. Select to move, resize, recolor,
+  duplicate, hide, lock, reorder, or remove them. Arrow keys nudge; Shift moves
+  eight pixels. Ctrl+Z and Ctrl+Shift+Z undo/redo layout changes.
+- Keyframe animation offers Float, Slide, Pop, and Fade presets. Set duration,
+  looping, and Linear/Smooth/Step interpolation, then add keys at the playhead.
+  Keys control X/Y offsets relative to the base position, scale, and opacity.
+  Up to 32 keys and a 1–16 second loop are supported. **Save to widget library**
+  retains the track for reuse. **Save variation** retains the whole face.
+- Draw sprite animations in the Pixel Workshop. Paint/erase, undo/redo strokes,
+  duplicate/add/remove/reorder frames, preview playback, set FPS, import an image,
+  and show the previous frame as a faint ghost. Sprites support 1–64 pixels per
+  dimension, 15 colors plus transparency, and up to 32 frames.
+- **Bake face to animated sprite** captures the whole composition at the sample
+  time/data. Review its frames before saving. This freezes the clock/date and
+  provider values; it is an explicit snapshot, not live data.
 
-Storage is specific to the browser and URL, and clearing browser data removes it.
-Export before moving to another browser, machine, or address. Browser security
-settings can prevent storage when opening a file directly; the local server is the
-preferred way to work. No design is automatically synced into firmware.
+## Library page
 
-## Fidelity and adding concepts
+Browse **Clock faces**, **Widgets**, or **Animations**, with search and sorting.
+Open faces, create variations, place widgets, edit saved sprite pixels, export,
+or delete with Undo available. Editing a library animation updates that saved
+entry; copies already placed on faces stay independent.
 
-Every face is drawn into a 64×64 canvas, with integer pixel placement and RGB565
-quantization. `engine.js` is a pure renderer, `app.js` manages the gallery,
-`workspace.js` validates and merges saved work, and `styles.css` controls presentation. No fonts or scripts load
-from a CDN. Add a preset and a rendering branch in `engine.js` to explore a new
-scene without changing the gallery infrastructure.
+The three starter layouts—Weather today, Five-day outlook, Daily agenda—are
+editable mockups. **Use editable starter** adds a face to your collection.
+The catalog is upgraded with new widget types without replacing saved faces.
 
-The JavaScript scenes are **concept previews, not a board emulator**. Ribbon's
-header/date use the compact preview font rather than LVGL's UNSCII font. Island's
-bird schedule is deterministic (departure at 24 s, return at 48 s in a 52 s cycle)
-rather than randomized. The segment font, colors, and scenes follow the existing
-firmware where practical, but this renderer does not execute its C sources.
+## Date formatting
 
-After selecting a concept, implement it in `main/ui/`, optionally introduce a
-desktop LVGL target sharing the C renderer, then verify physical brightness,
-readability, DMA behavior, memory, and sustained frame rate on the board.
+Select a Date widget, or bind Text to `clock.date`, and set **Date format**:
 
-## Checks
+| Pattern | Example |
+| --- | --- |
+| `MM-DD-YYYY` | `10-28-2026` |
+| `YYYY/MM/DD` | `2026/10/28` |
+| `ddd, MMM D` | `Wed, Oct 28` |
+| `[DATE:] DD.MM.YY` | `DATE: 28.10.26` |
+| `hh:mm A` | `02:05 PM` |
+
+Tokens: `YYYY YY`, `MMMM MMM MM M`, `DD D`, `dddd ddd`, `HH H hh h`,
+`mm m ss s`, `A a`. Uppercase `MM` means month; lowercase `mm` means minute.
+Literal words belong in square brackets; punctuation passes through unchanged.
+**Fit text width** sets native pixel width up to 64. Longer strings can be
+compressed by resizing; a 64-pixel panel still imposes readability limits.
+The compact font supports Latin letters, digits, and common punctuation.
+Computer time follows the browser timezone; sample time is deterministic.
+
+## Data bindings and mock widgets
+
+Select an element's **Function / source** in its inspector. Data stays separate
+from layout; editing **Data & bindings** updates every element using that source.
+Edited sample data is validated, saved in the workspace, and included in exports.
+
+| Widget/source | Supported preview content |
+| --- | --- |
+| `weather.current` | Sun/cloud/rain/snow icon, temperature in °F, precipitation probability |
+| `weather.forecast` | Five daily icons and temperatures; continuous probability curve across hourly samples |
+| `weather.tempF`, `weather.precipProbability` | Bind a Text widget with a prefix/suffix |
+| `calendar.events` | Two or three events today/tomorrow, titles, start times, all-day labels |
+| `clock.date` | Local clock with the selected date-format pattern |
+
+Weather is **sample data**. Google Calendar is **not connected**. The calendar
+adapter accepts Events.list-shaped records for preview, including timed/all-day
+events, excludes cancelled/out-of-window events, and normalizes titles/IDs.
+The adapter follows the documented [Google Calendar event resource](https://developers.google.com/workspace/calendar/api/v3/reference/events)
+fields for `summary`, `status`, and `start.date`/`start.dateTime`.
+OAuth, recurring-event expansion, timezone conversion into a chosen display zone,
+scheduled refresh, and automatic live weather fetching remain future integrations.
+No credentials, account access, or location are requested by these mockups.
+
+The curve smoothly interpolates probability samples within 0–100%; it does not
+represent precipitation amount or claim more forecast resolution than the input.
+
+Backend routes (all local):
+
+- `GET /api/providers`: capabilities and truthful connection statuses.
+- `GET /api/data?date=YYYY-MM-DD`: deterministic sample payload.
+- `POST /api/data/preview`: validate canonical weather/calendar values.
+- `POST /api/calendar/preview`: normalize `{items, referenceDate}`.
+
+POSTs require the matching loopback Origin, JSON, and `X-Face-Lab: 1`. The data
+contract has `referenceDate`, `current`, exactly five consecutive `days`,
+2–240 ordered `hourly` samples, and up to 100 `events`. Temperatures are °F;
+precipitation probabilities are percentages. Provider records are currently
+browser-local; the server validates them without writing a shared account store.
+
+## AI
+
+**Ask AI** requests a reusable widget, new face, or variation through the locally
+installed Codex CLI and its sign-in. Each request uses account usage and runs only
+when Generate is clicked. Results are bounded JSON data, not executed JavaScript,
+and are reviewed before adding to the studio. Generation is read-only and does
+not upload to the board. CLI sign-in/network availability must be configured by
+the user; tests use a mock model process. Alternatively, copy the request into
+this chat and paste/import the JSON response.
+
+## Deployment boundary
+
+The existing USB scene player supports sprites plus its built-in live clock,
+`MMM D` date, and seconds track. Studio explicitly rejects unsupported live
+provider bindings, custom date patterns, or unbaked keyframe tracks during
+package compilation. It never silently uploads stale sample data as live weather
+or calendar information. Use an explicitly baked sprite snapshot for those
+designs, or extend the firmware/provider transport in a later change.
+
+USB begins only after **Upload selected face** is clicked. With hardware available,
+the scene player requires a one-time firmware build/flash, documented in the Deploy
+dialog. The Island board-layout upload has been verified on the connected board,
+including pixel comparison, moving/resizing an element, and persistence after restart.
+
+## Verification and source layout
 
 ```powershell
-node --test preview/engine.test.cjs preview/workspace.test.cjs
-node --check preview/app.js
+node --test preview/engine.test.cjs preview/workspace.test.cjs preview/scene.test.cjs preview/designer.test.cjs preview/island-assets.test.cjs
+python -m unittest discover -s scripts -p test_*.py
 ```
 
-The renderer tests check deterministic seeking, valid opaque frames across all
-presets and layouts, color quantization, and frozen motion. Workspace tests check
-portable settings, repeated imports, validation, and atomic merging at capacity.
-Browser QA covers selection, controls, local saving, exports, and shortlist.
+`scene.js` validates/renders editable widgets; `animation.js` interpolates tracks;
+`widget-data.js` handles date formatting and bindings; `studio-state.js` migrates
+and merges workspaces; `app.js` manages canvas/sprite editing; `designer.js`
+implements Library, Data, and inspector extensions. `widget_providers.py` defines
+backend contracts. Tests exercise formats, leap dates, interpolation, bounds,
+rendering, persistence, migration, HTTP validation, and mocked USB/AI.
+
+
+## Original Island assets
+
+Open **Island — board layout** to edit the current native Island design. Its twelve
+independent layers are also in the widget library: clock, date, permanent sea,
+three wave ribbons, shore, two palms, rigid boat, and two birds. Existing faces
+and variations are retained. Use Save variation before experimenting, or Undo to
+restore an edit. Move, resize, recolor, duplicate, hide, remove, and reorder these
+layers; Deploy USB > Upload selected face saves the edited layout to the board.
+
+The default face is black, with full-width sea and the scene shifted down eight
+pixels. The three waves retain their offset timing, and the boat uses whole-pixel
+translation with four pixels of travel and remains in front of the waves. Clock
+and date remain live on the board. Native elements keep speed 1 and no extra
+movement on upload; convert to a sprite to draw new pixel frames. Island's native
+clock is 12-hour and its date is MMM D; the standard clock/date widgets retain
+their separate supported formats. Bird flight pauses are repeatable in the
+browser preview and random 20–30 seconds on the board.
+
+`island-assets.js` mirrors the native pixel geometry. FLS2 kinds 5–16 identify the
+twelve native elements; their position, size, and two editable colors are stored
+in the existing layer headers. Updated firmware is required once to accept these
+kinds; uploads remain 200 bytes for the default twelve-layer face. The board uses
+its canonical Island drawing routines for both built-in and uploaded elements.
+Scratch frames use external RAM to preserve the internal memory needed by Wi-Fi.
+
+With the original Island board-layout face uploaded, run the opt-in hardware check:
+
+```powershell
+.\.tools\host-python\Scripts\python.exe scripts/verify_island_upload.py
+```
+
+It checks forty native/uploaded frame pairs, boat rigidity and travel, full-width
+sea, reboot persistence, Wi-Fi reconnection, and internet time synchronization.
+The portable import is `artifacts/island-editable-library.json`.

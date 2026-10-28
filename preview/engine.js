@@ -18,6 +18,7 @@
     v:'000101101101010',y:'000101101111001'
   };
   const bitmapDigits = [[14,17,19,21,25,17,14],[4,12,4,4,4,4,14],[14,17,1,2,4,8,31],[30,1,1,14,1,1,30],[2,6,10,18,31,2,2],[31,16,16,30,1,1,30],[14,16,16,30,17,17,14],[31,1,2,4,8,8,8],[14,17,17,14,17,17,14],[14,17,17,15,1,1,14]];
+  Object.assign(glyphs,{'%':'101001010100101','.':'000000000000010',',':'000000000010100','!':'010010010000010','?':'110001010000010','+':'000010111010000','_':'000000000000111','|':'010010010010010','#':'101111101111101','=':'000111000111000',"'":'010010000000000','"':'101101000000000','(':'001010010010001',')':'100010010010100','°':'010101010000000','–':'000000111000000'});
   const segments = [63,6,91,79,102,109,125,7,127,111];
   const defaults = {ink:'#dde6d9',accent:'#44c6cb',background:'#03070b',digitStyle:'segment',format:'12',timeY:15,sceneY:0,motion:1,showDate:true,showSeconds:false};
   const presets = [
@@ -121,6 +122,6 @@
     if(c.showSeconds){box(3,62,58,1,color(c.accent,.15));box(3,62,Math.floor(date.getSeconds()*58/59),1,accent);}
     return data;
   }
-  const api={presets,defaults,normalize,render};
+  const api={presets,defaults,normalize,render,glyphs,bitmapDigits,segments};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FaceLab=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

@@ -5,6 +5,8 @@ import struct
 import sys
 import time
 import zlib
+from scene_protocol import validate_scene, deploy_scene
+from wifi_protocol import read_credentials, provision
 from pathlib import Path
 
 import serial
@@ -72,11 +74,44 @@ def save_png(path, rows, scale=8):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", help="Auto-detects the ESP32 USB port by default")
-    parser.add_argument("command", choices=["status", "sync", "mode", "brightness", "sound", "test", "capture", "verify"])
+    parser.add_argument("command", choices=["status", "sync", "mode", "brightness", "sound", "test", "capture", "verify", "deploy", "wifi", "network-check", "timezone-check", "restart"])
     parser.add_argument("value", nargs="?")
     args = parser.parse_args()
+    if args.command == 'wifi':
+        try: ssid,password=read_credentials(args.value or 'wifi.local.json')
+        except (ValueError,OSError):
+            parser.error('Edit wifi.local.json: ssid must be 1–32 UTF-8 bytes; password empty or 8–63 printable ASCII characters. File contents are not displayed.')
+        with connect(args.port) as link:
+            print(provision(link,ssid,password,request))
+        return
+    if args.command == 'network-check':
+        with connect(args.port) as link:
+            deadline=time.monotonic()+90
+            while time.monotonic()<deadline:
+                result=request(link,'status','STATUS ')
+                lines=[line.strip() for line in result.splitlines() if line.startswith('STATUS ')]
+                if lines and 'wifi=connected' in lines[-1] and re.search(r'ntp_syncs=[1-9]\d*',lines[-1]):
+                    print(lines[-1]);print('PASS: Wi-Fi connected and internet NTP time synchronized');return
+                time.sleep(2)
+            if lines: print(lines[-1])
+            raise SystemExit('Internet time is not synchronized yet. Check Wi-Fi settings and UDP port 123 access.')
+        return
+    if args.command == "deploy":
+        if not args.value:
+            parser.error("deploy requires a .fls scene package")
+        data = Path(args.value).read_bytes()
+        validate_scene(data)
+        with connect(args.port) as link:
+            print(deploy_scene(link, data, request))
+        return
     with connect(args.port) as link:
-        if args.command == "sync":
+        if args.command == 'timezone-check':
+            result=request(link,'tztest','TZTEST ')
+            print(result,end='')
+            if 'TZTEST PASS' not in result: raise SystemExit('New York DST checks failed')
+        elif args.command == 'restart':
+            print(request(link,'restart','RESTARTING'),end='')
+        elif args.command == "sync":
             print(request(link, f"time {int(time.time())}", "TIME "), end="")
         elif args.command == "capture":
             result = request(link, "capture", "FRAME END", timeout=12)

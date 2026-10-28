@@ -8,6 +8,7 @@ bool desk_ui_mode(const char *name);
 void desk_ui_next(void);
 const char *desk_ui_mode_name(void);
 void desk_ui_test(void);
+void desk_ui_custom_changed(void);
 
 typedef struct {
     int minute;

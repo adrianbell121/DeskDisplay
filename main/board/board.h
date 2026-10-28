@@ -25,6 +25,7 @@ uint32_t board_display_frames(void);
 bool board_display_snapshot(uint16_t *rgb565); // Copy 64x64 pixels with LVGL locked.
 esp_err_t board_clock_init(void);
 esp_err_t board_clock_set(time_t utc);
+esp_err_t board_clock_update_rtc(time_t utc);
 bool board_clock_valid(void);
 i2c_master_bus_handle_t board_i2c(void);
 esp_err_t board_audio_start(void);

@@ -5,7 +5,7 @@ Custom ESP-IDF 5.5.2 / LVGL 9.3 firmware for a Waveshare ESP32-S3-RGB-Matrix
 
 Two clock faces share the RTC-backed time. The original cyan ribbon clock keeps
 its layout and animation. The new island face uses a small mixed-case date,
-rounded clock digits with inline AM/PM, two coconut palms, a gently rocking
+rounded clock digits with inline AM/PM, two lush coconut palms, a gently bobbing
 white-sailed boat, and tiny birds that leave and return every 20–30 seconds.
 Calendar, weather, and timer integrations are future work.
 
@@ -13,11 +13,18 @@ Calendar, weather, and timer integrations are future work.
 
 ## Build and use
 
+For internet time, fill in the ignored root file `wifi.local.json` using
+`wifi.example.json` as a template. After flashing, run
+`.\.tools\host-python\Scripts\python.exe scripts/device.py --port COM4 wifi wifi.local.json`.
+The board syncs on connection and hourly, displaying New York time with automatic
+EST/EDT changes. See the [Wi-Fi setup guide](docs/firmware.md#wi-fi-credentials-and-hourly-internet-time).
+
 To explore designs on your computer before building firmware, open
 [`preview/index.html`](preview/index.html), or run `.\scripts\preview.ps1` and
-visit <http://127.0.0.1:8765>. Face Lab offers six animated 64×64 concepts,
-layout and color controls, saved variations, a shortlist, PNG snapshots, and
-exportable build briefs. See the [preview guide](preview/README.md).
+visit <http://127.0.0.1:8765>. Widget Studio offers editable 64×64 layouts,
+a library of faces/widgets/animations, keyframe and pixel animation tools, custom
+date formats, and sample weather/calendar data bindings. See the
+[Studio guide](preview/README.md) for usage and the current deployment limits.
 
 Open this repository root in VS Code. On a fresh checkout, install Git and Python
 3.11, then run these commands from the repository root:
@@ -35,7 +42,7 @@ speaker test. Close the serial monitor before another task uses the USB port.
 
 - Tap **BOOT** to switch between the original clock and island face.
 - Hold **BOOT** for one second to play the speaker test.
-- Press **RST** to return to the clock at 25% brightness.
+- Press **RST** to restart on Island at 25% brightness (a saved custom scene can take precedence).
 
 ## Project layout
 

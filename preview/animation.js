@@ -1,0 +1,7 @@
+(function(root){
+  'use strict';
+  const clamp=(v,a,b,d)=>typeof v==='number'&&Number.isFinite(v)?Math.max(a,Math.min(b,v)):d;
+  function clean(raw){raw=raw||{};const duration=clamp(raw.duration,1,16,4);const keys=Array.isArray(raw.keys)?raw.keys.slice(0,32).map(k=>({t:clamp(k.t,0,duration,0),x:clamp(k.x,-64,64,0),y:clamp(k.y,-64,64,0),scale:clamp(k.scale,.1,4,1),opacity:clamp(k.opacity,0,1,1)})):[];const byTime=new Map(keys.map(k=>[k.t,k]));return {duration,loop:raw.loop!==false,easing:['linear','smooth','step'].includes(raw.easing)?raw.easing:'smooth',keys:[...byTime.values()].sort((a,b)=>a.t-b.t)};}
+  function at(animation,seconds){const a=clean(animation),identity={x:0,y:0,scale:1,opacity:1};if(!a.keys.length)return identity;const t=a.loop?((seconds%a.duration)+a.duration)%a.duration:Math.min(a.duration,Math.max(0,seconds));let before=a.keys[0],after=a.keys.at(-1);if(t<=before.t)return {...before};if(t>=after.t)return {...after};for(let i=1;i<a.keys.length;i++)if(a.keys[i].t>=t){before=a.keys[i-1];after=a.keys[i];break;}let p=(t-before.t)/(after.t-before.t||1);if(a.easing==='smooth')p=p*p*(3-2*p);if(a.easing==='step')p=0;const value={};for(const k of ['x','y','scale','opacity'])value[k]=before[k]+(after[k]-before[k])*p;return value;}
+  const api={clean,at};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WidgetAnimation=api;
+})(typeof globalThis!=='undefined'?globalThis:this);

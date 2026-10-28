@@ -73,6 +73,11 @@ esp_err_t board_clock_set(time_t utc)
     if (utc < 1704067200LL || utc > 4102444799LL) return ESP_ERR_INVALID_ARG;
     const struct timeval tv = {.tv_sec = utc};
     if (settimeofday(&tv, NULL) != 0) return ESP_FAIL;
+    return board_clock_update_rtc(utc);
+}
+esp_err_t board_clock_update_rtc(time_t utc)
+{
+    if (utc < 1704067200LL || utc > 4102444799LL) return ESP_ERR_INVALID_ARG;
     atomic_store(&valid, true);
     if (!rtc) return ESP_ERR_NOT_FOUND;
     struct tm t;

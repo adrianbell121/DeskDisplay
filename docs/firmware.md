@@ -14,12 +14,58 @@ VS Code. Hardware references are in `docs/hardware/`.
   The PCM signal is also attenuated. `sound 0..85` adjusts the test volume.
 - PCF85063 RTC stores UTC; display uses America/New_York rules with daylight saving.
 - USB commands and a live framebuffer capture for troubleshooting.
-- Starts at 25% panel brightness. Modes and brightness reset to defaults on reboot.
+- Starts on Island at 25% panel brightness (an explicitly saved custom scene can
+  still take precedence). Brightness resets on reboot.
+- Wi-Fi/SNTP acquires internet time on connection and every 3,600 seconds, with
+  reconnect attempts after network loss. Successful syncs update the UTC RTC.
 
-Calendar, weather, network time, and timer triggers are future work. This version
-uses no Wi-Fi credentials, OAuth tokens, microphone recording, or cloud services.
+Calendar, weather, and timer integrations remain future firmware work. Wi-Fi is
+used for internet time; no OAuth or microphone recording is involved.
+
+## Wi-Fi credentials and hourly internet time
+
+Put your 2.4 GHz network credentials in `wifi.local.json` in the repository root:
+
+```json
+{"ssid":"YOUR_WIFI_NAME","password":"YOUR_WIFI_PASSWORD"}
+```
+
+`wifi.example.json` is the shareable template; `wifi.local.json` is ignored by Git.
+Credentials are sent over USB and stored in the board's NVS, rather than compiled
+into the firmware. Close the serial monitor, then run:
+
+```powershell
+.\.tools\host-python\Scripts\python.exe scripts/device.py --port COM4 wifi wifi.local.json
+.\.tools\host-python\Scripts\python.exe scripts/device.py --port COM4 network-check
+.\.tools\host-python\Scripts\python.exe scripts/device.py --port COM4 timezone-check
+```
+
+After changing networks, edit the same file and rerun `wifi`; rebuilding/flashing
+is not required. SSIDs support 1–32 UTF-8 bytes; WPA passwords use 8–63 printable
+ASCII characters. An empty password is allowed for an open network.
+
+Three NTP Pool servers provide UTC. Sync starts when Wi-Fi gets an IP address and
+repeats hourly (`ntp_interval_s=3600`). `status` reports Wi-Fi state, the last
+successful NTP epoch, sync count, New York local time, EST/EDT, and UTC offset.
+If the network is unavailable, the clock continues from the UTC RTC/system clock.
+
+New York uses `EST5EDT,M3.2.0,M11.1.0`: EST in winter and EDT in summer. The on-board
+`timezone-check` tests both spring-forward and fall-back conversions without
+changing the real clock. The underlying timezone/SNTP APIs follow the
+[ESP-IDF system-time documentation](https://docs.espressif.com/projects/esp-idf/en/v5.5.2/esp32s3/api-reference/system/system_time.html).
 
 ## Verified on the connected board (2026-10-23)
+
+Additional verification on **2026-10-28**: the bootloader, partition table, and
+Wi-Fi-enabled application were flashed to COM4 with hash verification. Island
+started by default. Credentials were provisioned from the ignored local JSON;
+the board acquired NTP time, reported `wifi=connected`, `clock=set`,
+`ntp_interval_s=3600`, and New York EDT (`-0400`). After a software reboot,
+credentials persisted, Island restarted, and a fresh NTP sync succeeded. All
+four on-board spring/fall DST boundary cases passed. Existing mode/bounds/frame
+progress/audio-initialization checks passed. A framebuffer capture is in
+`artifacts/island-internet-time.png`. The hourly interval was checked directly;
+this was not a one-hour endurance test.
 
 ESP-IDF build and flash passed, including flash hash verification. The user
 confirmed the physical clock display and audible chime at codec volume 65.
@@ -68,14 +114,14 @@ Run these PowerShell commands from the repository root:
 `sync` copies the PC's current UTC time into the system clock and RTC. With a
 working RTC backup battery, time survives removal of main power. Without a valid
 RTC time the original clock shows `SET TIME`; the island face shows dashes.
-Network time can be added later. The serial helper auto-detects a single Espressif
+Internet time is synchronized automatically when Wi-Fi is configured. The serial helper auto-detects a single Espressif
 USB device; use `--port COM4` before the command when multiple devices are present.
 
 ## On the board
 
 - Short press **BOOT**: clock -> island -> clock.
 - Hold **BOOT** for one second: play the speaker test once.
-- **RST**: restart; defaults to clock at 25% brightness.
+- **RST**: restart; defaults to Island at 25% brightness, or an uploaded custom scene.
 - `test`: an eight-second red/green/blue/gray test with asymmetric white corner
   marks, then returns to the clock. This checks channel order, row addressing,
   orientation, and clipping.
@@ -104,18 +150,25 @@ animation. Future calendar/weather providers should send bounded events to the
 application task, which can select screens and queue sounds. Keep network requests,
 JSON parsing, and OAuth refresh out of LVGL callbacks.
 
-Only a 4 MB factory application partition and NVS/PHY partitions are defined.
-Remaining flash is reserved. OTA and asset partitions need an explicit design
-before introducing remote firmware updates or large animation libraries.
+The flash layout includes a 4 MB factory application, NVS/PHY, and a 1 MB scene
+partition with two slots for interrupted-upload recovery. Remaining flash is
+reserved; OTA updates are not configured. Wi-Fi credentials use a separate NVS
+namespace and normal firmware flashes preserve them.
 
 ## Clock faces
 
 `clock` preserves the original weekday/AM/PM header, large time, date, animated
-cyan ribbon, and seconds bar. It remains the startup face.
+cyan ribbon, and seconds bar. Island is now the default startup face.
 
 `island` places a small date such as `Oct 23` at the top. Rounded 12-hour digits
 and AM/PM share a line; no weekday appears. A small sand island has two coconut
-palms, and a white-sailed boat gently rocks on the ribbon. The time changes
+palms, and a white-sailed boat bobs on the ribbon as a rigid sprite. Permanent
+water starts at the island shoreline; the ribbon highlights it with a four-pixel
+total vertical range (two pixels in each direction). Trunks and fronds are thicker.
+All boat pixels share one integer vertical offset, with no rotation. The backdrop
+uses off pixels. The entire scene below the clock is translated down eight pixels,
+with water spanning all 64 columns and three independently phased wave ribbons.
+The boat is drawn after every ribbon so its pixels remain in front. The time changes
 immediately at each minute, without a transition or full-screen animation.
 
 Two tiny birds start perched near the palms. A randomly chosen interval of

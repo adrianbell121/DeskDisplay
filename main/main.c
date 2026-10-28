@@ -4,7 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include "board.h"
+#include "network.h"
 #include "desk_ui.h"
+#include "scene_store.h"
+#include "scene_player.h"
 #include "driver/gpio.h"
 #include "driver/usb_serial_jtag.h"
 #include "driver/usb_serial_jtag_vfs.h"
@@ -20,15 +23,21 @@ static unsigned brightness = 25;
 static uint16_t capture[64 * 64];
 static void status(void)
 {
+    time_t utc_now=time(NULL);struct tm local;localtime_r(&utc_now,&local);
+    char local_text[40],zone[12],offset[12];
+    strftime(local_text,sizeof(local_text),"%Y-%m-%dT%H:%M:%S",&local);
+    strftime(zone,sizeof(zone),"%Z",&local);strftime(offset,sizeof(offset),"%z",&local);
     const char *mode = "busy";
     desk_ui_state_t ui = {.minute = -1, .birds = "inactive", .birds_next_ms = -1};
     if (lvgl_port_lock(100)) { mode = desk_ui_mode_name(); desk_ui_get_state(&ui); lvgl_port_unlock(); }
     printf("STATUS version=0.1.0 panel=64x64 mode=%s brightness=%u clock=%s audio=%s frames=%" PRIu32
            " heap=%u min_heap=%u uptime=%" PRIi64 " utc=%" PRIi64
-           " ui_minute=%d birds=%s birds_next_ms=%d\n",
+           " ui_minute=%d birds=%s birds_next_ms=%d scene_version=2"
+           " wifi=%s ntp_last=%" PRIu32 " ntp_syncs=%" PRIu32 " ntp_interval_s=%u timezone=America/New_York local=%s zone=%s utc_offset=%s\n",
            mode, brightness, board_clock_valid() ? "set" : "unset", esp_err_to_name(board_audio_status()),
            board_display_frames(), (unsigned)esp_get_free_heap_size(), (unsigned)esp_get_minimum_free_heap_size(),
-           esp_timer_get_time() / 1000000, (int64_t)time(NULL), ui.minute, ui.birds, ui.birds_next_ms);
+           esp_timer_get_time() / 1000000, (int64_t)time(NULL), ui.minute, ui.birds, ui.birds_next_ms,
+           board_network_status(), board_network_last_sync(), board_network_sync_count(), board_network_sync_interval(), local_text, zone, offset);
     fflush(stdout);
 }
 static bool number(const char *text, int64_t *out)
@@ -40,14 +49,40 @@ static bool number(const char *text, int64_t *out)
     *out = n;
     return true;
 }
+static void timezone_test(void)
+{
+    static const struct {time_t utc;const char *expected;} cases[]={
+        {1772953199,"2026-03-08T01:59:59 EST -0500"},
+        {1772953200,"2026-03-08T03:00:00 EDT -0400"},
+        {1793512799,"2026-11-01T01:59:59 EDT -0400"},
+        {1793512800,"2026-11-01T01:00:00 EST -0500"},
+    };
+    bool ok=true;
+    for(unsigned i=0;i<sizeof(cases)/sizeof(cases[0]);i++){
+        struct tm t;char out[64];localtime_r(&cases[i].utc,&t);strftime(out,sizeof(out),"%Y-%m-%dT%H:%M:%S %Z %z",&t);
+        bool match=!strcmp(out,cases[i].expected);printf("TZCASE %u %s %s\n",i,out,match?"OK":"FAIL");ok=ok&&match;
+    }
+    puts(ok?"TZTEST PASS spring_and_fall":"TZTEST FAIL");
+}
 static void command(char *line)
 {
     char *arg = strchr(line, ' ');
     if (arg) *arg++ = '\0';
     int64_t value;
     if (!strcmp(line, "help")) {
-        puts("COMMANDS status | time <UTC epoch> | mode clock|island | brightness 0..100 | sound [0..85] | test | capture");
+        puts("COMMANDS status | time <UTC epoch> | mode clock|island|custom | wifi status|begin|ssid|pass|commit|abort | scene begin|data|commit|abort | brightness 0..100 | sound [0..85] | test | capture");
     } else if (!strcmp(line, "status")) status();
+    else if (!strcmp(line, "islandcompare")) {
+        time_t now=time(NULL);struct tm t;localtime_r(&now,&t);
+        if(lvgl_port_lock(1000)) {
+            unsigned differences=scene_player_compare_island(&t,board_clock_valid(),esp_timer_get_time()/1000);
+            lvgl_port_unlock();printf("ISLANDCOMPARE pixels_different=%u\n",differences);
+        } else puts("ERROR display busy");
+    }
+    else if (!strcmp(line, "tztest")) timezone_test();
+    else if (!strcmp(line, "restart")) {puts("RESTARTING");fflush(stdout);vTaskDelay(pdMS_TO_TICKS(100));esp_restart();}
+    else if (!strcmp(line, "scene")) scene_store_command(arg);
+    else if (!strcmp(line, "wifi")) board_network_command(arg);
     else if (!strcmp(line, "time") && arg && number(arg, &value)) {
         esp_err_t err = board_clock_set((time_t)value);
         if (err == ESP_ERR_INVALID_ARG) puts("ERROR time must be a UTC epoch in 2024..2099");
@@ -56,7 +91,7 @@ static void command(char *line)
         if (lvgl_port_lock(1000)) {
             bool ok = desk_ui_mode(arg);
             lvgl_port_unlock();
-            puts(ok ? "MODE OK" : "ERROR use clock or island");
+            puts(ok ? "MODE OK" : "ERROR use clock, island, or an uploaded custom face");
         } else puts("ERROR display busy");
     } else if (!strcmp(line, "brightness") && arg && number(arg, &value) && value >= 0 && value <= 100) {
         if (lvgl_port_lock(1000)) {
@@ -95,6 +130,8 @@ void app_main(void)
     esp_err_t clock_err = board_clock_init();
     ESP_LOGI("deskdisplay", "RTC: %s", esp_err_to_name(clock_err));
     ESP_ERROR_CHECK(lvgl_port_lock(2000) ? ESP_OK : ESP_ERR_TIMEOUT);
+    esp_err_t scene_err = scene_store_init();
+    if (scene_err != ESP_OK) ESP_LOGW("deskdisplay", "Scene storage: %s", esp_err_to_name(scene_err));
     ESP_ERROR_CHECK(desk_ui_init());
     lvgl_port_unlock();
     esp_err_t audio_err = board_audio_start();
@@ -105,6 +142,8 @@ void app_main(void)
     usb_serial_jtag_driver_config_t usb = {.tx_buffer_size = 2048, .rx_buffer_size = 512};
     ESP_ERROR_CHECK(usb_serial_jtag_driver_install(&usb));
     usb_serial_jtag_vfs_use_driver();
+    esp_err_t network_err = board_network_init();
+    if (network_err != ESP_OK) ESP_LOGW("deskdisplay", "Network service: %s", esp_err_to_name(network_err));
     puts("DESKDISPLAY READY; short BOOT: next mode; hold BOOT 1 second: speaker test; send help");
     fflush(stdout);
     char line[128];

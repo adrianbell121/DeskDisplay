@@ -1,0 +1,633 @@
+{
+  "type": "object",
+  "properties": {
+    "explanation": {
+      "type": "string"
+    },
+    "widgets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "islandPart": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 11
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "clock",
+              "date",
+              "seconds",
+              "text",
+              "box",
+              "ellipse",
+              "wave",
+              "boat",
+              "palm",
+              "bird",
+              "orbit",
+              "rain",
+              "mountains",
+              "moon",
+              "flower",
+              "fireflies",
+              "sprite",
+              "weather",
+              "forecast",
+              "calendar",
+              "island"
+            ]
+          },
+          "x": {
+            "type": "integer",
+            "minimum": -63,
+            "maximum": 63
+          },
+          "y": {
+            "type": "integer",
+            "minimum": -63,
+            "maximum": 63
+          },
+          "w": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 64
+          },
+          "h": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 64
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "secondary": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "text": {
+            "type": "string"
+          },
+          "font": {
+            "type": "string",
+            "enum": [
+              "segment",
+              "block"
+            ]
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "12",
+              "24"
+            ]
+          },
+          "dateFormat": {
+            "type": "string"
+          },
+          "binding": {
+            "type": "string",
+            "enum": [
+              "none",
+              "clock.date",
+              "weather.current",
+              "weather.forecast",
+              "calendar.events",
+              "weather.tempF",
+              "weather.precipProbability"
+            ]
+          },
+          "prefix": {
+            "type": "string"
+          },
+          "suffix": {
+            "type": "string"
+          },
+          "eventLimit": {
+            "type": "integer",
+            "minimum": 2,
+            "maximum": 3
+          },
+          "animation": {
+            "type": "object",
+            "properties": {
+              "duration": {
+                "type": "number",
+                "minimum": 1,
+                "maximum": 16
+              },
+              "loop": {
+                "type": "boolean"
+              },
+              "easing": {
+                "type": "string",
+                "enum": [
+                  "linear",
+                  "smooth",
+                  "step"
+                ]
+              },
+              "keys": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "t": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 16
+                    },
+                    "x": {
+                      "type": "number",
+                      "minimum": -64,
+                      "maximum": 64
+                    },
+                    "y": {
+                      "type": "number",
+                      "minimum": -64,
+                      "maximum": 64
+                    },
+                    "scale": {
+                      "type": "number",
+                      "minimum": 0.1,
+                      "maximum": 4
+                    },
+                    "opacity": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "t",
+                    "x",
+                    "y",
+                    "scale",
+                    "opacity"
+                  ],
+                  "additionalProperties": false
+                },
+                "maxItems": 32
+              }
+            },
+            "required": [
+              "duration",
+              "loop",
+              "easing",
+              "keys"
+            ],
+            "additionalProperties": false
+          },
+          "effect": {
+            "type": "string",
+            "enum": [
+              "none",
+              "bob",
+              "sway",
+              "drift",
+              "blink",
+              "orbit"
+            ]
+          },
+          "speed": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 4
+          },
+          "amount": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10
+          },
+          "period": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16
+          },
+          "sprite": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "width": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 64
+                  },
+                  "height": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 64
+                  },
+                  "palette": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^#[0-9a-fA-F]{6}$"
+                    },
+                    "minItems": 1,
+                    "maxItems": 15
+                  },
+                  "frames": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[0-9a-fA-F]+$",
+                      "maxLength": 4096
+                    },
+                    "minItems": 1,
+                    "maxItems": 32
+                  },
+                  "fps": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 30
+                  }
+                },
+                "required": [
+                  "width",
+                  "height",
+                  "palette",
+                  "frames",
+                  "fps"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "islandPart",
+          "type",
+          "x",
+          "y",
+          "w",
+          "h",
+          "color",
+          "secondary",
+          "text",
+          "font",
+          "format",
+          "dateFormat",
+          "binding",
+          "prefix",
+          "suffix",
+          "eventLimit",
+          "animation",
+          "effect",
+          "speed",
+          "amount",
+          "period",
+          "sprite"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 32
+    },
+    "face": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "background": {
+              "type": "string",
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            },
+            "widgets": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "islandPart": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 11
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "clock",
+                      "date",
+                      "seconds",
+                      "text",
+                      "box",
+                      "ellipse",
+                      "wave",
+                      "boat",
+                      "palm",
+                      "bird",
+                      "orbit",
+                      "rain",
+                      "mountains",
+                      "moon",
+                      "flower",
+                      "fireflies",
+                      "sprite",
+                      "weather",
+                      "forecast",
+                      "calendar",
+                      "island"
+                    ]
+                  },
+                  "x": {
+                    "type": "integer",
+                    "minimum": -63,
+                    "maximum": 63
+                  },
+                  "y": {
+                    "type": "integer",
+                    "minimum": -63,
+                    "maximum": 63
+                  },
+                  "w": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 64
+                  },
+                  "h": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 64
+                  },
+                  "color": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-fA-F]{6}$"
+                  },
+                  "secondary": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-fA-F]{6}$"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "font": {
+                    "type": "string",
+                    "enum": [
+                      "segment",
+                      "block"
+                    ]
+                  },
+                  "format": {
+                    "type": "string",
+                    "enum": [
+                      "12",
+                      "24"
+                    ]
+                  },
+                  "dateFormat": {
+                    "type": "string"
+                  },
+                  "binding": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "clock.date",
+                      "weather.current",
+                      "weather.forecast",
+                      "calendar.events",
+                      "weather.tempF",
+                      "weather.precipProbability"
+                    ]
+                  },
+                  "prefix": {
+                    "type": "string"
+                  },
+                  "suffix": {
+                    "type": "string"
+                  },
+                  "eventLimit": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 3
+                  },
+                  "animation": {
+                    "type": "object",
+                    "properties": {
+                      "duration": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 16
+                      },
+                      "loop": {
+                        "type": "boolean"
+                      },
+                      "easing": {
+                        "type": "string",
+                        "enum": [
+                          "linear",
+                          "smooth",
+                          "step"
+                        ]
+                      },
+                      "keys": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "t": {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 16
+                            },
+                            "x": {
+                              "type": "number",
+                              "minimum": -64,
+                              "maximum": 64
+                            },
+                            "y": {
+                              "type": "number",
+                              "minimum": -64,
+                              "maximum": 64
+                            },
+                            "scale": {
+                              "type": "number",
+                              "minimum": 0.1,
+                              "maximum": 4
+                            },
+                            "opacity": {
+                              "type": "number",
+                              "minimum": 0,
+                              "maximum": 1
+                            }
+                          },
+                          "required": [
+                            "t",
+                            "x",
+                            "y",
+                            "scale",
+                            "opacity"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "maxItems": 32
+                      }
+                    },
+                    "required": [
+                      "duration",
+                      "loop",
+                      "easing",
+                      "keys"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "effect": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "bob",
+                      "sway",
+                      "drift",
+                      "blink",
+                      "orbit"
+                    ]
+                  },
+                  "speed": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 4
+                  },
+                  "amount": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 10
+                  },
+                  "period": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 16
+                  },
+                  "sprite": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "width": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 64
+                          },
+                          "height": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 64
+                          },
+                          "palette": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^#[0-9a-fA-F]{6}$"
+                            },
+                            "minItems": 1,
+                            "maxItems": 15
+                          },
+                          "frames": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "pattern": "^[0-9a-fA-F]+$",
+                              "maxLength": 4096
+                            },
+                            "minItems": 1,
+                            "maxItems": 32
+                          },
+                          "fps": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 30
+                          }
+                        },
+                        "required": [
+                          "width",
+                          "height",
+                          "palette",
+                          "frames",
+                          "fps"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "name",
+                  "islandPart",
+                  "type",
+                  "x",
+                  "y",
+                  "w",
+                  "h",
+                  "color",
+                  "secondary",
+                  "text",
+                  "font",
+                  "format",
+                  "dateFormat",
+                  "binding",
+                  "prefix",
+                  "suffix",
+                  "eventLimit",
+                  "animation",
+                  "effect",
+                  "speed",
+                  "amount",
+                  "period",
+                  "sprite"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 32
+            }
+          },
+          "required": [
+            "name",
+            "background",
+            "widgets"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "explanation",
+    "widgets",
+    "face"
+  ],
+  "additionalProperties": false
+}

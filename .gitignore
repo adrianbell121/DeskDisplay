@@ -23,6 +23,7 @@ __pycache__/
 *.code-workspace
 
 # Local secrets and OS metadata
+/wifi.local.json
 .env
 .env.*
 !.env.example
