@@ -5,8 +5,9 @@
   const D=typeof module!=='undefined'&&module.exports?require('./widget-data.js'):root.WidgetData;
   const A=typeof module!=='undefined'&&module.exports?require('./animation.js'):root.WidgetAnimation;
   const I=typeof module!=='undefined'&&module.exports?require('./island-assets.js'):root.IslandAssets;
+  const W=typeof module!=='undefined'&&module.exports?require('./scene-weather.js'):root.SceneWeather;
   const clone=value=>JSON.parse(JSON.stringify(value));
-  const types=['clock','date','seconds','text','box','ellipse','wave','boat','palm','bird','orbit','rain','mountains','moon','flower','fireflies','sprite','weather','forecast','calendar','island'];
+  const types=['clock','date','seconds','text','box','ellipse','wave','boat','palm','bird','orbit','rain','mountains','moon','flower','fireflies','sprite','weather','forecast','calendar','island',...W.kinds];
   const effects=['none','bob','sway','drift','blink','orbit'];
   const palette=['#000000','#edf1da','#b7cfbd','#44c6cb','#126976','#407c59','#a79161','#79583b','#e6b05a','#d4a3d9','#89a7ef','#ef7167','#293c53','#ffffff','#94e780'];
   const num=(n,min,max,fallback)=>typeof n==='number'&&Number.isFinite(n)?Math.max(min,Math.min(max,n)):fallback;
@@ -16,6 +17,7 @@
     if(!raw||!types.includes(raw.type))throw new Error('Unknown widget type.');
     const w={id:typeof raw.id==='string'?raw.id.slice(0,80):uid(),name:String(raw.name||raw.type).slice(0,60),type:raw.type,x:Math.round(num(raw.x,-63,63,0)),y:Math.round(num(raw.y,-63,63,0)),w:Math.round(num(raw.w,1,64,16)),h:Math.round(num(raw.h,1,64,16)),color:hex(raw.color,'#dde6d9'),secondary:hex(raw.secondary,'#44c6cb'),visible:raw.visible!==false,locked:raw.locked===true,text:String(raw.text||'Hello').slice(0,80),font:raw.font==='block'?'block':'segment',format:raw.format==='24'?'24':'12',flipX:raw.flipX===true,flipY:raw.flipY===true,rotation:[0,90,180,270].includes(raw.rotation)?raw.rotation:0,effect:effects.includes(raw.effect)?raw.effect:'none',speed:num(raw.speed,0,4,1),amount:num(raw.amount,0,10,1),period:Math.round(num(raw.period,1,16,4))};
     if(w.type==='island')w.islandPart=Math.round(num(raw.islandPart,0,11,0));
+    if(W.kinds.includes(w.type)&&raw.weather)w.weather=W.clean(raw.weather);
     w.dateFormat=typeof raw.dateFormat==='string'?raw.dateFormat.slice(0,80):'MMM D';
     w.binding=D.bindings.includes(raw.binding)?raw.binding:({date:'clock.date',weather:'weather.current',forecast:'weather.forecast',calendar:'calendar.events'}[w.type]||'none');
     w.prefix=String(raw.prefix||'').slice(0,40);w.suffix=String(raw.suffix||'').slice(0,40);w.eventLimit=raw.eventLimit===2?2:3;w.animation=A.clean(raw.animation);
@@ -38,12 +40,14 @@
   ];
   const islandWidgets=I.specs.map(([name,x,y,w,h,color,secondary],islandPart)=>make('island',name,x,y,w,h,{color,secondary,islandPart}));
   templates.push(...islandWidgets);
+  templates.push(...W.templates().map(w=>cleanWidget(w)));
   templates.forEach((w,i)=>w.id='lib-'+w.type+(w.type==='island'?'-'+w.islandPart:''));
   function nativeSize(w){if(w.type==='clock')return [54,14];if(w.type==='date')return [31,5];if(w.type==='seconds')return [58,1];if(w.type==='text')return [Math.max(3,w.text.length*4-1),5];if(w.type==='sprite')return [w.sprite.width,w.sprite.height];return {wave:[64,12],boat:[15,17],palm:[22,21],bird:[9,7],orbit:[58,28],rain:[58,28],mountains:[64,29],moon:[9,9],flower:[9,20],fireflies:[58,27]}[w.type]||[w.w,w.h];}
   function rgba(hex,strength=1){const n=parseInt(hex.slice(1),16);return [(n>>16)*strength,((n>>8)&255)*strength,(n&255)*strength];}
   function rgb565(col){return ((Math.max(0,Math.min(255,col[0]))>>3)<<11)|((Math.max(0,Math.min(255,col[1]))>>2)<<5)|(Math.max(0,Math.min(255,col[2]))>>3);}
   function expanded(n){return [Math.round((n>>11)*255/31),Math.round(((n>>5)&63)*255/63),Math.round((n&31)*255/31)];}
   function raster(w,seconds,date){
+    if(W.kinds.includes(w.type))return W.raster(w,seconds);
     if(w.type==='island')return I.raster(w,seconds,date);
     let [nw,nh]=nativeSize(w);if(w.type==='date'){nw=Math.max(3,D.formatDate(date,w.dateFormat).length*4-1);nh=5;}if(w.type==='text')nw=Math.max(3,D.textValue(w,date).length*4-1);if(['weather','forecast','calendar'].includes(w.type)){nw=64;nh=w.type==='weather'?32:42;}
     const raw=new Uint8ClampedArray(nw*nh*4),ink=rgba(w.color),accent=rgba(w.secondary),phase=seconds*w.speed*Math.PI*2/w.period;
@@ -101,7 +105,7 @@
   function render(scene,seconds,date,target){
     const out=target||new Uint8ClampedArray(16384),bg=expanded(rgb565(rgba(scene.background)));
     for(let i=0;i<out.length;i+=4){out[i]=bg[0];out[i+1]=bg[1];out[i+2]=bg[2];out[i+3]=255;}
-    for(const w of scene.widgets){if(!w.visible)continue;const motion=A.at(w.animation,seconds),image=raster(w,seconds,date),width=Math.max(1,Math.min(256,Math.round(w.w*motion.scale))),height=Math.max(1,Math.min(256,Math.round(w.h*motion.scale)));for(let y=0;y<height;y++)for(let x=0;x<width;x++){const tx=Math.round(x+w.x+motion.x),ty=Math.round(y+w.y+motion.y);if(tx<0||ty<0||tx>63||ty>63)continue;const s=(Math.floor(y*w.h/height)*w.w+Math.floor(x*w.w/width))*4;if(!image[s+3]||!motion.opacity)continue;const dst=(ty*64+tx)*4;for(let c=0;c<3;c++)out[dst+c]=Math.round(out[dst+c]*(1-motion.opacity)+image[s+c]*motion.opacity);}}
+    for(const w of scene.widgets){if(!w.visible)continue;const motion=A.at(w.animation,seconds),image=raster(W.kinds.includes(w.type)&&scene.weather?{...w,weather:scene.weather}:w,seconds,date),width=Math.max(1,Math.min(256,Math.round(w.w*motion.scale))),height=Math.max(1,Math.min(256,Math.round(w.h*motion.scale)));for(let y=0;y<height;y++)for(let x=0;x<width;x++){const tx=Math.round(x+w.x+motion.x),ty=Math.round(y+w.y+motion.y);if(tx<0||ty<0||tx>63||ty>63)continue;const s=(Math.floor(y*w.h/height)*w.w+Math.floor(x*w.w/width))*4;if(!image[s+3]||!motion.opacity)continue;const dst=(ty*64+tx)*4;for(let c=0;c<3;c++)out[dst+c]=Math.round(out[dst+c]*(1-motion.opacity)+image[s+c]*motion.opacity);}}
     return out;
   }
   function fromLegacy(face){
@@ -114,23 +118,31 @@
     add('clock',5,c.timeY,54,14,{font:c.digitStyle,format:c.format});if(c.showDate)add('date',17,4,31,5,{color:c.accent});if(c.showSeconds)add('seconds',3,62,58,1,{color:c.accent});
     return {id:face.id,name:face.name,background:c.background,favorite:face.favorite===true,notes:face.notes||'',widgets};
   }
-  function cleanScene(raw){if(!raw||!Array.isArray(raw.widgets)||raw.widgets.length>32)throw new Error('A face can have up to 32 widgets.');const widgets=raw.widgets.map(cleanWidget),ids=new Set();for(const w of widgets){if(ids.has(w.id))w.id=uid();ids.add(w.id);}return {id:String(raw.id||uid()).slice(0,80),name:String(raw.name||'Untitled face').slice(0,60),background:hex(raw.background,'#03070b'),favorite:raw.favorite===true,notes:String(raw.notes||'').slice(0,2000),widgets};}
+  function cleanScene(raw){if(!raw||!Array.isArray(raw.widgets)||raw.widgets.length>32)throw new Error('A face can have up to 32 widgets.');const widgets=raw.widgets.map(cleanWidget),ids=new Set();for(const w of widgets){if(ids.has(w.id))w.id=uid();ids.add(w.id);}return {...(raw.weather?{weather:W.clean(raw.weather)}:{}),id:String(raw.id||uid()).slice(0,80),name:String(raw.name||'Untitled face').slice(0,60),background:hex(raw.background,'#03070b'),favorite:raw.favorite===true,notes:String(raw.notes||'').slice(0,2000),widgets};}
   function compile(scene){
     // Header: FLS2, layer count u16, background u16. Each layer has 16-byte header.
     const chunks=[],header=new Uint8Array(8),hv=new DataView(header.buffer);header.set([70,76,83,50]);const widgets=scene.widgets.filter(w=>w.visible);hv.setUint16(4,widgets.length,true);hv.setUint16(6,rgb565(rgba(scene.background)),true);chunks.push(header);
     for(const w of widgets){
+      if(W.kinds.includes(w.type)){
+        if(w.effect!=='none'||w.rotation||w.flipX||w.flipY||w.animation?.keys.length)throw new Error('Weather layers support position, size, colors and weather controls; remove extra transforms before upload.');
+        const c=W.clean(scene.weather||w.weather),data=W.getData(c.location),coords=(data&&Number.isFinite(data.latitude)&&Number.isFinite(data.longitude)?data:null)||(/^(boston,? (ma|massachusetts))$/i.test(c.location)?{latitude:42.3601,longitude:-71.0589}:null);
+        if(!coords||!Number.isFinite(coords.latitude)||!Number.isFinite(coords.longitude))throw new Error('Refresh current weather for this location before uploading to resolve its coordinates.');
+        const b=new Uint8Array(92),v=new DataView(b.buffer);b[0]=17+W.kinds.indexOf(w.type);v.setInt8(1,w.x);v.setInt8(2,w.y);b[3]=w.w;b[4]=w.h;b[5]=b[6]=1;b[7]=12;v.setUint16(8,rgb565(rgba(w.color)),true);v.setUint16(10,rgb565(rgba(w.secondary)),true);v.setUint16(14,76,true);
+        b[16]=c.condition==='auto'?0:1+W.conditions.indexOf(c.condition);b[17]=c.enabled?1:0;b[18]=c.sunRays?1:0;
+        const values=['rainDensity','rainSpeed','rainLength','rainSlant','snowDensity','snowSpeed','snowSize','snowDrift','snowDriftSpeed','cloudCount','cloudSpeed','lightningMin','lightningMax','lightningDuration','lightningWidth'].map(k=>c[k]);values.push(w.speed,coords.latitude,coords.longitude);values.forEach((n,i)=>v.setFloat32(20+i*4,n,true));chunks.push(b);continue;
+      }
       if(['weather','forecast','calendar'].includes(w.type)||w.binding.startsWith('weather.')||w.binding==='calendar.events')throw new Error('Weather/calendar use sample or connected desktop data. Convert to pixels for an explicit snapshot; live provider sync to the board is not installed.');
       if(w.animation?.keys.length)throw new Error('Keyframe tracks are editable in Studio. Bake a face animation for a scene package; live clock tracks cannot be exported as live data.');
       if(w.type==='date'&&w.dateFormat!=='MMM D')throw new Error('Custom date patterns are supported in Studio. The current board scene player supports MMM D only.');
       const dynamic=['clock','date','seconds','island'].includes(w.type),kind=w.type==='island'?5+w.islandPart:w.type==='clock'?(w.font==='block'?2:1):w.type==='date'?3:w.type==='seconds'?4:0;
       if(w.type==='island'&&w.islandPart===0&&w.format!=='12')throw new Error('The original Island clock uses 12-hour format. Use the standard Live clock widget for 24-hour format.');
       if(w.type==='island'&&w.speed!==1)throw new Error('Island assets currently keep their original animation speed on the board. Set speed to 1 before upload.');
-      if(dynamic&&(w.effect!=='none'||w.rotation||w.flipX||w.flipY))throw new Error('Live clock/date/seconds support move, resize, colors, and format on USB. Remove their extra effect or convert them to a sprite.');
+      if(dynamic&&(w.effect!=='none'||w.type!=='island'&&(w.rotation||w.flipX||w.flipY)))throw new Error('Live clock/date/seconds support move, resize, colors, and format on USB. Remove their extra effect or convert them to a sprite.');
       const frames=dynamic?1:Math.max(1,Math.min(32,w.type==='sprite'?w.sprite.frames.length:w.speed===0||['box','ellipse','text','mountains','moon'].includes(w.type)&&w.effect==='none'?1:32));
       const fps=dynamic?1:w.type==='sprite'?Math.max(1,Math.min(30,Math.round(w.sprite.fps*w.speed)||1)):Math.max(1,Math.round(frames/w.period));
       const colors=[],indices=[];
       if(!dynamic)for(let f=0;f<frames;f++){const image=raster(w,f/fps,new Date(2026,0,1));for(let i=0;i<image.length;i+=4){if(!image[i+3]){indices.push(0);continue;}const col=rgb565(image.subarray(i,i+3));let ix=colors.indexOf(col);if(ix<0){if(colors.length>=255)throw new Error('This widget uses too many colors.');ix=colors.length;colors.push(col);}indices.push(ix+1);}}
-      const bytes=new Uint8Array(16+colors.length*2+indices.length),v=new DataView(bytes.buffer);bytes[0]=dynamic?kind:0;v.setInt8(1,w.x);v.setInt8(2,w.y);bytes[3]=w.w;bytes[4]=w.h;bytes[5]=frames;bytes[6]=fps;bytes[7]=w.format==='24'?24:12;v.setUint16(8,rgb565(rgba(w.color)),true);v.setUint16(10,rgb565(w.type==='seconds'?rgba(w.color,.15):rgba(w.secondary)),true);v.setUint16(12,colors.length,true);v.setUint16(14,0,true);colors.forEach((col,i)=>v.setUint16(16+i*2,col,true));bytes.set(indices,16+colors.length*2);chunks.push(bytes);
+      const bytes=new Uint8Array(16+colors.length*2+indices.length),v=new DataView(bytes.buffer);bytes[0]=dynamic?kind:0;v.setInt8(1,w.x);v.setInt8(2,w.y);bytes[3]=w.w;bytes[4]=w.h;bytes[5]=frames;bytes[6]=fps;bytes[7]=w.format==='24'?24:12;v.setUint16(8,rgb565(rgba(w.color)),true);v.setUint16(10,rgb565(w.type==='seconds'?rgba(w.color,.15):rgba(w.secondary)),true);v.setUint16(12,colors.length,true);v.setUint16(14,w.type==='island'?((w.flipX?1:0)|(w.flipY?2:0)|((w.rotation/90)<<2)):0,true);colors.forEach((col,i)=>v.setUint16(16+i*2,col,true));bytes.set(indices,16+colors.length*2);chunks.push(bytes);
     }
     const length=chunks.reduce((n,c)=>n+c.length,0);if(length>262144)throw new Error('Scene exceeds the 256 KB board limit. Reduce widget sizes or animation frames.');const result=new Uint8Array(length);let offset=0;for(const c of chunks){result.set(c,offset);offset+=c.length;}return result;
   }

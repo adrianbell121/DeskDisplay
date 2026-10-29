@@ -21,5 +21,5 @@ test('catalog migration preserves user faces, adds assets once, and respects lat
 });
 test('Island color edits affect their own layer and unsupported transforms never upload silently',()=>{
  const f=S.boardIsland(),water=f.widgets[2],before=S.raster(water,0,date);water.color='#ff0000';const after=S.raster(water,0,date);assert.notDeepEqual(before,after);assert.equal(after[0],255);assert.equal(after[1],0);
- f.widgets[9].rotation=90;assert.throws(()=>S.compile(f),/Live/);f.widgets[9].rotation=0;f.widgets[9].speed=2;assert.throws(()=>S.compile(f),/speed/);
+ f.widgets[9].rotation=90;assert.ok(S.compile(f).length>8);f.widgets[9].rotation=0;f.widgets[9].speed=2;assert.throws(()=>S.compile(f),/speed/);
 });

@@ -58,7 +58,7 @@ extern "C" esp_err_t board_display_init(void)
     if (!panel->begin()) { delete panel; panel = nullptr; return ESP_FAIL; }
 
     constexpr size_t bytes = 64 * 64 * sizeof(uint16_t);
-    void *buffer = heap_caps_malloc(bytes, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    void *buffer = heap_caps_malloc(bytes, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (!buffer) { delete panel; panel = nullptr; return ESP_ERR_NO_MEM; }
     lvgl_port_cfg_t port_cfg = ESP_LVGL_PORT_INIT_CONFIG();
     port_cfg.task_stack = 6144;

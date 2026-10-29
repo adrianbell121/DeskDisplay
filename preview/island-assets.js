@@ -33,7 +33,7 @@ function raster(w,seconds,date){
  // Preview uses a repeatable 25-second pause; the board retains random 20–30s pauses.
  if(part>=10){const i=part-10,t=phase%58,elapsed=t<29?t-25:t-54;if(t<25||t>=29&&t<54){if(t<25){const x=18+i*10,y=34+i*5;dot(x,y,rgb(155,185,177));dot(x-1,y-1,rgb(155,185,177));dot(x+1,y-1,rgb(155,185,177));}}else{let p=Math.max(0,Math.min(1,(elapsed-i*.35)/3.5));if(t>=54)p=1-p;const x=round(18+i*10+p*53),y=round(34+i*5-Math.sin(p*1.5708)*(3+i*2)),wing=p>0&&p<1&&Math.sin(elapsed*17+i)>0?1:-1;dot(x,y,rgb(155,185,177));dot(x-1,y+wing,rgb(155,185,177));dot(x+1,y+wing,rgb(155,185,177));}}
  const defaults=[quant(colors(primary)),quant(colors(secondary))],replacements=[quant(colors(w.color)),quant(colors(w.secondary))];
- for(let y=0;y<w.h;y++)for(let x=0;x<w.w;x++){const sx=bx+Math.floor((2*x+1)*bw/(2*w.w)),sy=by+Math.floor((2*y+1)*bh/(2*w.h)),src=(sy*64+sx)*4,dst=(y*w.w+x)*4;out.set(raw.subarray(src,src+4),dst);for(let c=0;c<2;c++)if(raw[src+3]&&defaults[c].every((v,k)=>raw[src+k]===v)){out.set(replacements[c],dst);break;}}
+ for(let y=0;y<w.h;y++)for(let x=0;x<w.w;x++){let u=(x+.5)/w.w,v=(y+.5)/w.h,old=u;if(w.rotation===90){u=v;v=1-old;}if(w.rotation===180){u=1-u;v=1-v;}if(w.rotation===270){u=1-v;v=old;}if(w.flipX)u=1-u;if(w.flipY)v=1-v;const sx=bx+Math.floor(u*bw),sy=by+Math.floor(v*bh),src=(sy*64+sx)*4,dst=(y*w.w+x)*4;out.set(raw.subarray(src,src+4),dst);for(let c=0;c<2;c++)if(raw[src+3]&&defaults[c].every((v,k)=>raw[src+k]===v)){out.set(replacements[c],dst);break;}}
  return out;
 }
 const api={specs,raster};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.IslandAssets=api;

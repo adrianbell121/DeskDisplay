@@ -21,7 +21,7 @@ JOBS = {}
 JOBS_LOCK = threading.Lock()
 USB_LOCK = threading.Lock()
 AI_LOCK = threading.Lock()
-AI_TYPES = "clock date seconds text box ellipse wave boat palm bird orbit rain mountains moon flower fireflies sprite weather forecast calendar island".split()
+AI_TYPES = "clock date seconds text box ellipse wave boat palm bird orbit rain mountains moon flower fireflies sprite weather forecast calendar island weatherSun weatherClouds weatherRain weatherSnow weatherLightning".split()
 
 
 def ai_prompt(body):
@@ -42,6 +42,7 @@ def ai_prompt(body):
         "0 is transparent and 1–f index the palette. Make small legible pixel art with consistent frame dimensions. "
         "Widgets have x,y (-63..63), w,h (1..64), colors, font segment/block, format 12/24, optional text, "
         "effect none/bob/sway/drift/blink/orbit, speed 0..4, amount 0..10, period 1..16 seconds. "
+        "Scene weather effects use weatherSun, weatherClouds, weatherRain, weatherSnow, weatherLightning. Preserve face.weather configuration in variations; these live effects run in the dashboard and cannot deploy to the board yet. "
         "Island elements use type island and islandPart 0 clock, 1 date, 2 sea, 3..5 waves, 6 shore, 7..8 palms, 9 boat, 10..11 birds. Preserve islandPart, original geometry, speed 1, and effect none when varying an existing Island face. "
         "clock/date/seconds are live data and must use effect none for USB deployment. "
         "dateFormat supports YYYY MM DD MMM ddd and [literal words]. binding links a widget to clock.date, weather.current, weather.forecast, calendar.events, weather.tempF or weather.precipProbability; use none for static visuals. "
@@ -115,6 +116,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             with JOBS_LOCK:
                 job = JOBS.get(job_id)
                 return self.send_json(dict(job) if job else {"error": "Job not found"}, 200 if job else 404)
+        if urlsplit(self.path).path == '/api/weather/current':
+            try:
+                from scene_weather import current_weather
+                return self.send_json(current_weather(parse_qs(urlsplit(self.path).query).get('location',['Boston, MA'])[0]))
+            except (ValueError,KeyError,TypeError) as error:
+                return self.send_json({'error':str(error)},400)
+            except Exception:
+                return self.send_json({'error':'Weather service unavailable. Last successful conditions are retained; retry shortly.'},502)
         if self.path == '/api/providers':
             return self.send_json({'providers': providers()})
         if urlsplit(self.path).path == '/api/data':

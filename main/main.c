@@ -5,6 +5,7 @@
 #include <string.h>
 #include "board.h"
 #include "network.h"
+#include "weather.h"
 #include "desk_ui.h"
 #include "scene_store.h"
 #include "scene_player.h"
@@ -20,7 +21,7 @@
 #include "freertos/task.h"
 
 static unsigned brightness = 25;
-static uint16_t capture[64 * 64];
+static uint16_t *capture;
 static void status(void)
 {
     time_t utc_now=time(NULL);struct tm local;localtime_r(&utc_now,&local);
@@ -32,7 +33,7 @@ static void status(void)
     if (lvgl_port_lock(100)) { mode = desk_ui_mode_name(); desk_ui_get_state(&ui); lvgl_port_unlock(); }
     printf("STATUS version=0.1.0 panel=64x64 mode=%s brightness=%u clock=%s audio=%s frames=%" PRIu32
            " heap=%u min_heap=%u uptime=%" PRIi64 " utc=%" PRIi64
-           " ui_minute=%d birds=%s birds_next_ms=%d scene_version=2"
+           " ui_minute=%d birds=%s birds_next_ms=%d scene_version=2 weather_version=1"
            " wifi=%s ntp_last=%" PRIu32 " ntp_syncs=%" PRIu32 " ntp_interval_s=%u timezone=America/New_York local=%s zone=%s utc_offset=%s\n",
            mode, brightness, board_clock_valid() ? "set" : "unset", esp_err_to_name(board_audio_status()),
            board_display_frames(), (unsigned)esp_get_free_heap_size(), (unsigned)esp_get_minimum_free_heap_size(),
@@ -82,6 +83,7 @@ static void command(char *line)
     else if (!strcmp(line, "tztest")) timezone_test();
     else if (!strcmp(line, "restart")) {puts("RESTARTING");fflush(stdout);vTaskDelay(pdMS_TO_TICKS(100));esp_restart();}
     else if (!strcmp(line, "scene")) scene_store_command(arg);
+    else if (!strcmp(line, "weather")) board_weather_command(arg);
     else if (!strcmp(line, "wifi")) board_network_command(arg);
     else if (!strcmp(line, "time") && arg && number(arg, &value)) {
         esp_err_t err = board_clock_set((time_t)value);
@@ -109,13 +111,17 @@ static void command(char *line)
         if (lvgl_port_lock(1000)) { desk_ui_test(); lvgl_port_unlock(); puts("TEST 8 seconds"); }
         else puts("ERROR display busy");
     } else if (!strcmp(line, "capture")) {
+        if(!capture)capture=heap_caps_malloc(64*64*sizeof(*capture),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+        if(!capture){puts("ERROR capture memory");return;}
         bool ok = false;
         if (lvgl_port_lock(1000)) { ok = board_display_snapshot(capture); lvgl_port_unlock(); }
         if (ok) {
-            puts("FRAME BEGIN 64 64 RGB565");
+            bool compressed=arg&&!strcmp(arg,"rle");
+            puts(compressed?"FRAME RLE 64 64 RGB565":"FRAME BEGIN 64 64 RGB565");
             for (int y = 0; y < 64; y++) {
-                char row[64 * 4 + 1];
-                for (int x = 0; x < 64; x++) snprintf(row + x * 4, 5, "%04x", capture[y * 64 + x]);
+                char row[64 * 6 + 1];
+                if(compressed){int at=0;for(int x=0;x<64;){int count=1;while(x+count<64&&capture[y*64+x+count]==capture[y*64+x])count++;snprintf(row+at,7,"%02x%04x",(unsigned)(count&255),(unsigned)capture[y*64+x]);at+=6;x+=count;}}
+                else for (int x = 0; x < 64; x++) snprintf(row + x * 4, 5, "%04x", capture[y * 64 + x]);
                 puts(row);
             }
             puts("FRAME END");
@@ -144,6 +150,7 @@ void app_main(void)
     usb_serial_jtag_vfs_use_driver();
     esp_err_t network_err = board_network_init();
     if (network_err != ESP_OK) ESP_LOGW("deskdisplay", "Network service: %s", esp_err_to_name(network_err));
+    board_weather_init();
     puts("DESKDISPLAY READY; short BOOT: next mode; hold BOOT 1 second: speaker test; send help");
     fflush(stdout);
     char line[128];

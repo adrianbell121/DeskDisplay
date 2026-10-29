@@ -4,6 +4,7 @@
   let state=Store.fresh(),selectedId=null,elapsed=0,playing=true,lastTick=null,lastPaint=0,shortlist=false,gesture=null;
   const undo=[],redo=[];let timer,storageOK=true,clipboardWidget=null;
   try{const old=localStorage.getItem(key)||localStorage.getItem('deskdisplay.face-lab.v1');if(old)state=Store.clean(JSON.parse(old));}catch{storageOK=false;}
+  if(state.defaultFaceId&&state.faces.some(f=>f.id===state.defaultFaceId))state.selected=state.defaultFaceId;
   const face=()=>state.faces.find(f=>f.id===state.selected),widget=()=>face().widgets.find(w=>w.id===selectedId);
   selectedId=face().widgets.find(w=>w.type==='clock')?.id||null;
   const ctx=$('face-canvas').getContext('2d'),frame=new ImageData(64,64),stage=$('stage');

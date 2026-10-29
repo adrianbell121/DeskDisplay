@@ -4,13 +4,15 @@
 #include <string.h>
 #include "scene_font.h"
 #include "island_face.h"
+#include "weather_layer.h"
+#include "weather.h"
 #include "esp_heap_caps.h"
 #include <stdlib.h>
 
 typedef struct {
     uint8_t type, w, h, frames, fps, format;
     int8_t x, y;
-    uint16_t color, secondary, colors;
+    uint16_t color, secondary, colors, flags;
     const uint8_t *palette, *pixels;
 } layer_t;
 static layer_t layers[32];
@@ -34,18 +36,19 @@ static bool decode(const uint8_t *data, size_t size, bool install)
         if (size - offset < 16) return false;
         const uint8_t *p = data + offset;
         layer_t layer = {.type=p[0], .x=(int8_t)p[1], .y=(int8_t)p[2], .w=p[3], .h=p[4],
-            .frames=p[5], .fps=p[6], .format=p[7], .color=u16(p+8), .secondary=u16(p+10), .colors=u16(p+12)};
-        if (layer.type > 16 || layer.x < -63 || layer.y < -63 || !layer.w || layer.w > 64 ||
+            .frames=p[5], .fps=p[6], .format=p[7], .color=u16(p+8), .secondary=u16(p+10), .colors=u16(p+12), .flags=u16(p+14)};
+        if (layer.type > 21 || layer.x < -63 || layer.y < -63 || !layer.w || layer.w > 64 ||
             !layer.h || layer.h > 64 || !layer.frames || layer.frames > 32 || !layer.fps ||
-            layer.fps > 30 || layer.colors > 255 || (layer.format != 12 && layer.format != 24) || u16(p+14)) return false;
-        size_t length = layer.type ? 0 : (size_t)layer.w * layer.h * layer.frames;
+            layer.fps > 30 || layer.colors > 255 || (layer.format != 12 && layer.format != 24) || (layer.type>=17?layer.flags!=WEATHER_PAYLOAD_BYTES:layer.type>=5?layer.flags>15:layer.flags!=0)) return false;
+        size_t length = layer.type>=17 ? WEATHER_PAYLOAD_BYTES : layer.type ? 0 : (size_t)layer.w * layer.h * layer.frames;
         if (layer.type && (layer.frames != 1 || layer.colors)) return false;
         size_t bytes = layer.colors * 2 + length;
         offset += 16;
         if (bytes > size - offset) return false;
         layer.palette = data + offset;
         layer.pixels = layer.palette + layer.colors * 2;
-        for (size_t k = 0; k < length; k++) if (layer.pixels[k] > layer.colors) return false;
+        if(layer.type>=17&&!weather_layer_valid(layer.pixels))return false;
+        for (size_t k = 0; layer.type==0 && k < length; k++) if (layer.pixels[k] > layer.colors) return false;
         offset += bytes;
         if (install) layers[i] = layer;
     }
@@ -57,7 +60,11 @@ bool scene_player_validate(const uint8_t *data, size_t size) { return decode(dat
 bool scene_player_set(const uint8_t *data, size_t size, int64_t now_ms)
 {
     if (!scene_player_validate(data,size)) return false;
-    decode(data,size,true); started=now_ms; ready=true; return true;
+    decode(data,size,true); started=now_ms; ready=true;
+    bool configured=false;
+    for(unsigned i=0;i<count;i++)if(layers[i].type>=17){const uint8_t *p=layers[i].pixels;float lat,lon;memcpy(&lat,p+68,4);memcpy(&lon,p+72,4);board_weather_configure(lat,lon,p[1]&&p[0]==0);configured=true;break;}
+    if(!configured)board_weather_configure(0,0,false);
+    return true;
 }
 bool scene_player_ready(void) { return ready; }
 static void dot(int x, int y, uint16_t color)
@@ -113,6 +120,7 @@ void scene_player_render(uint16_t *pixels, const struct tm *time, bool valid, in
     uint64_t elapsed=now_ms>started?(uint64_t)(now_ms-started):0;
     for(unsigned i=0;i<count;i++){
         const layer_t *l=&layers[i];unsigned frame=l->type?0:(elapsed*l->fps/1000)%l->frames;
+        if(l->type>=17){weather_layer_draw(pixels,l->pixels,l->type-17,l->x,l->y,l->w,l->h,l->color,l->secondary,elapsed/1000.0);continue;}
         if(l->type>=5) {
             if(!island_pixels)island_pixels=heap_caps_calloc(4096,sizeof(*island_pixels),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
             if(!island_pixels)continue;
@@ -122,7 +130,12 @@ void scene_player_render(uint16_t *pixels, const struct tm *time, bool valid, in
             for(unsigned y=0;y<l->h;y++)for(unsigned x=0;x<l->w;x++) {
                 int tx=l->x+x,ty=l->y+y;
                 if(tx<0||ty<0||tx>63||ty>63)continue;
-                unsigned sx=b[0]+(2*x+1)*b[2]/(2*l->w),sy=b[1]+(2*y+1)*b[3]/(2*l->h);
+                float u=(x+.5f)/l->w,v=(y+.5f)/l->h,old=u;
+                unsigned rotation=(l->flags>>2)&3;
+                if(rotation==1){u=v;v=1-old;}if(rotation==2){u=1-u;v=1-v;}if(rotation==3){u=1-v;v=old;}
+                if(l->flags&1)u=1-u;
+                if(l->flags&2)v=1-v;
+                unsigned sx=b[0]+(unsigned)(u*b[2]),sy=b[1]+(unsigned)(v*b[3]);
                 uint16_t color=island_pixels[sy*64+sx];
                 static const uint16_t defaults[12][2]={{0xdf3b,0x8533},{0x8533,0x8533},{0x0105,0x0105},{0x0a0a,0x0906},{0x0aee,0x0968},{0x0bd1,0x09ea},{0xaccc,0x83a9},{0x440b,0x93a9},{0x440b,0x93a9},{0xe75b,0x9b68},{0x9dd6,0x9dd6},{0x9dd6,0x9dd6}};
                 if(color==defaults[part][0])color=l->color;

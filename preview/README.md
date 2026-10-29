@@ -179,3 +179,71 @@ With the original Island board-layout face uploaded, run the opt-in hardware che
 It checks forty native/uploaded frame pairs, boat rigidity and travel, full-width
 sea, reboot persistence, Wi-Fi reconnection, and internet time synchronization.
 The portable import is `artifacts/island-editable-library.json`.
+
+
+## Island weather scene
+
+The named Island — Adrian face is selected as the default on first weather setup;
+its existing geometry is preserved and five weather layers are appended. Use the
+Scene weather panel to choose a city (Boston, MA initially), retrieve current
+conditions, or preview sunny, partly cloudy, cloudy, rain, thunderstorms, or snow.
+The Open-Meteo current API refreshes every ten minutes while Studio is open;
+read failures retain the last successful result and display an error. The panel
+shows the resolved city, observation time, temperature in Fahrenheit, and whether
+a preview override is active. A city/state or city/country search changes location.
+
+Sun, clouds, rain, snow, and lightning remain separate editable library widgets.
+Their placement, dimensions, visibility and colors use the normal layer controls.
+The weather panel controls rays, cloud count/movement, rain density/speed/length/
+slant, snow density/speed/fluff/drift/sway, and lightning minimum/maximum gaps,
+duration and width. Lightning defaults to a thin 0.12-second strike every 60–120
+seconds. Preview lightning strike pauses on a strike without changing the schedule.
+Rain/snow/lightning are layered over the island scene. Settings persist per face
+and survive workspace export/import and Save variation.
+
+The weather-enabled board firmware supports these effects as procedural layers,
+not short baked loops. FLS2 kinds 17–21 carry a validated 76-byte payload with
+condition mode, enable/rays flags, fifteen visual settings, widget speed and
+resolved latitude/longitude. Uploads require weather_version=1 in board status.
+Boston coordinates are built in; refresh other locations once to resolve them
+before compiling. Positions, dimensions and both colors remain in layer headers.
+Native Island layers also support flips and right-angle rotations using header
+flags, preserving edited wave variations.
+
+With Current weather selected at upload, the board fetches weather_code directly
+from Open-Meteo over certificate-verified HTTPS every ten minutes. It does not
+need Studio to remain open. The worker retains its last good result on failure
+and retries after thirty seconds. Location/visual settings persist with the scene;
+test overrides are temporary and do not replace the saved layout. Clock/NTP and
+Wi-Fi configuration are retained. Conditions remain unknown (no weather overlay)
+until the first successful fetch, rather than showing invented conditions.
+
+USB diagnostics: weather status, weather test sunny|partly-cloudy|cloudy|rainy|storm|snowy,
+weather strike, and weather auto. The last command restores the configured live
+condition. The opt-in scripts/verify_weather_board.py cycles all six conditions,
+captures PNG/GIF animations, verifies moving precipitation and lightning, waits
+for a naturally scheduled strike, then restores automatic weather. It opens the
+board only when explicitly run. Captures/reports go to artifacts/weather-board/.
+
+Sources: https://open-meteo.com/en/docs and
+https://open-meteo.com/en/docs/geocoding-api. Current route:
+GET /api/weather/current?location=Boston%2C%20MA (loopback server only).
+
+
+### Board deployment verification
+
+The native weather renderer is tested with the saved Adrian layout, including
+its clock/date positions, edited sprite boat and flipped wave variation. Board
+captures use optional `capture rle` encoding so short lightning flashes and motion
+can be inspected without flooding USB. Normal `capture` remains compatible.
+The hardware test saves six 24-frame GIFs, condition PNGs, a captured lightning
+strike, a contact sheet and verification.json. Natural lightning is checked
+separately from the explicit test flash. The final weather status must itself
+report a successful weather sync; unrelated NTP heartbeat output is not accepted.
+
+HTTPS uses the verified certificate bundle, IPv4 and a separate task on core 1.
+TLS allocations, the weather task stack, the LVGL transfer buffer and capture
+scratch memory use external RAM, leaving internal RAM for Wi-Fi packet buffers
+and the HUB75 DMA driver. Display geometry and timing remain unchanged. Failed
+requests keep the last successful weather condition and retry; temporary test
+conditions are cleared with `weather auto` and never replace the saved scene.
