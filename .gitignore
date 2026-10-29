@@ -29,3 +29,6 @@ __pycache__/
 !.env.example
 .DS_Store
 Thumbs.db
+
+# Shared local dashboard designs and automatic backups
+/data/

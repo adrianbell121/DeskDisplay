@@ -9,6 +9,7 @@
 #include "desk_ui.h"
 #include "scene_store.h"
 #include "scene_player.h"
+#include "minute_birds.h"
 #include "driver/gpio.h"
 #include "driver/usb_serial_jtag.h"
 #include "driver/usb_serial_jtag_vfs.h"
@@ -33,7 +34,7 @@ static void status(void)
     if (lvgl_port_lock(100)) { mode = desk_ui_mode_name(); desk_ui_get_state(&ui); lvgl_port_unlock(); }
     printf("STATUS version=0.1.0 panel=64x64 mode=%s brightness=%u clock=%s audio=%s frames=%" PRIu32
            " heap=%u min_heap=%u uptime=%" PRIi64 " utc=%" PRIi64
-           " ui_minute=%d birds=%s birds_next_ms=%d scene_version=2 weather_version=1"
+           " ui_minute=%d birds=%s birds_next_ms=%d scene_version=2 weather_version=1 minute_birds=1"
            " wifi=%s ntp_last=%" PRIu32 " ntp_syncs=%" PRIu32 " ntp_interval_s=%u timezone=America/New_York local=%s zone=%s utc_offset=%s\n",
            mode, brightness, board_clock_valid() ? "set" : "unset", esp_err_to_name(board_audio_status()),
            board_display_frames(), (unsigned)esp_get_free_heap_size(), (unsigned)esp_get_minimum_free_heap_size(),
@@ -79,6 +80,10 @@ static void command(char *line)
             unsigned differences=scene_player_compare_island(&t,board_clock_valid(),esp_timer_get_time()/1000);
             lvgl_port_unlock();printf("ISLANDCOMPARE pixels_different=%u\n",differences);
         } else puts("ERROR display busy");
+    }
+    else if (!strcmp(line,"birdphase")&&arg){
+        if(!strcmp(arg,"auto")){if(lvgl_port_lock(1000)){minute_bird_test_phase(-1);lvgl_port_unlock();puts("BIRDPHASE AUTO");}}
+        else{char *end;double s=strtod(arg,&end);if(*end||s<0||s>60)puts("ERROR birdphase 0..60 or auto");else if(lvgl_port_lock(1000)){minute_bird_test_phase(s);lvgl_port_unlock();puts("BIRDPHASE OK");}}
     }
     else if (!strcmp(line, "tztest")) timezone_test();
     else if (!strcmp(line, "restart")) {puts("RESTARTING");fflush(stdout);vTaskDelay(pdMS_TO_TICKS(100));esp_restart();}

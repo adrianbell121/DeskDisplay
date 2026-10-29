@@ -9,6 +9,7 @@ idf_component_register(
         "ui/weather_layer.c"
         "ui/desk_ui.c"
         "ui/island_face.c"
+        "ui/minute_birds.c"
         "ui/scene_player.c"
         "ui/scene_store.c"
     INCLUDE_DIRS "." "board" "ui"

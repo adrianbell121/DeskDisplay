@@ -21,7 +21,7 @@ JOBS = {}
 JOBS_LOCK = threading.Lock()
 USB_LOCK = threading.Lock()
 AI_LOCK = threading.Lock()
-AI_TYPES = "clock date seconds text box ellipse wave boat palm bird orbit rain mountains moon flower fireflies sprite weather forecast calendar island weatherSun weatherClouds weatherRain weatherSnow weatherLightning".split()
+AI_TYPES = "clock date seconds text box ellipse wave boat palm bird orbit rain mountains moon flower fireflies sprite weather forecast calendar island weatherSun weatherClouds weatherRain weatherSnow weatherLightning minuteBird".split()
 
 
 def ai_prompt(body):
@@ -108,6 +108,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if not self.allowed_host():
             return self.send_json({"error": "Loopback host required"}, 403)
+        if self.path == "/api/workspace":
+            from workspace_store import read
+            return self.send_json(read())
         if self.path == "/api/capabilities":
             # Deliberately does not enumerate, probe, or connect to serial devices.
             return self.send_json({"ai": shutil.which("codex") is not None, "sceneVersion": 2})
@@ -142,11 +145,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self.send_json({"error": "Use the local Studio page for this action"}, 403)
         try:
             length = int(self.headers.get("Content-Length", "0"))
-            if not 0 < length <= 2000000:
+            if not 0 < length <= 6000000:
                 raise ValueError("Request body is too large or empty")
             body = json.loads(self.rfile.read(length))
             if not isinstance(body, dict):
                 raise ValueError("Expected a JSON object")
+            if self.path in ('/api/workspace','/api/workspace/recovery'):
+                from workspace_store import save,recovery,Conflict
+                try:
+                    if self.path.endswith('/recovery'):
+                        recovery(body.get('state'));return self.send_json({'saved':True})
+                    return self.send_json(save(body.get('state'),body.get('revision')))
+                except Conflict as error:return self.send_json({'error':str(error)},409)
             if self.path == '/api/data/preview':
                 return self.send_json(normalize_data(body))
             if self.path == '/api/calendar/preview':

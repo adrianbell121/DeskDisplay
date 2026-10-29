@@ -11,11 +11,12 @@ From the repository root:
 .\scripts\preview.ps1
 ```
 
-Open <http://127.0.0.1:8765>. Keep the same browser and address for browser-local
-saves. Export workspace creates a portable JSON backup. Existing Face Lab v1/v2
-workspaces migrate to layers; the original v1 browser entry is retained.
-Opening `index.html` directly supports local design, but AI and data backend routes
-require the server. The server binds to loopback and exposes only the preview folder.
+Open <http://127.0.0.1:8765> in any browser on this computer, or double-click
+Launch Dashboard.cmd / the desktop shortcut. All browsers load the same shared
+workspace from data/workspace.json. Faces, widget library, variations, default
+face and preview settings are shared. Export workspace creates a portable backup.
+The server is required; opening index.html directly is no longer supported.
+The server binds to loopback and exposes only the preview folder plus its APIs.
 It does not open, enumerate, probe, or flash a board on startup.
 
 ## Designer and animations
@@ -104,7 +105,7 @@ POSTs require the matching loopback Origin, JSON, and `X-Face-Lab: 1`. The data
 contract has `referenceDate`, `current`, exactly five consecutive `days`,
 2–240 ordered `hourly` samples, and up to 100 `events`. Temperatures are °F;
 precipitation probabilities are percentages. Provider records are currently
-browser-local; the server validates them without writing a shared account store.
+included in the shared workspace; the server validates them without connecting a calendar account.
 
 ## AI
 
@@ -247,3 +248,57 @@ scratch memory use external RAM, leaving internal RAM for Wi-Fi packet buffers
 and the HUB75 DMA driver. Display geometry and timing remain unchanged. Failed
 requests keep the last successful weather condition and retry; temporary test
 conditions are cleared with `weather auto` and never replace the saved scene.
+
+
+## Shared workspace and recovery
+
+Designs live in data/workspace.json, outside browser storage and ignored by Git.
+The server writes an atomic replacement only after validating collections and
+checking the caller's revision. Earlier workspaces and migrated browser copies
+are retained as content-addressed JSON in data/recovery/. Back up the data folder
+to move the complete shared library to another computer. This is shared local
+storage, not public cloud hosting or LAN access.
+
+Existing browser storage remains a recovery cache. On first setup, its workspace
+is migrated if the server has no saved workspace. When a shared workspace already
+exists, differing browser data is archived to data/recovery/ rather than replacing
+the shared library with an older or blank browser copy. Existing backup JSON can
+be brought back with Import. Open browsers check for changes every three seconds,
+pausing updates during active edits or dialogs. Stale saves receive a conflict;
+the unsaved local copy is retained and the UI asks for a reload, preventing silent
+overwrite. Refresh already-open dashboards once after installing this update.
+
+
+## Adrian2 minute birds
+
+Island — Adrian2 uses five independent minuteBird layers (birdIndex 0–4), replacing
+only that face's two legacy bird layers. Other faces keep their original birds.
+The five original three-pixel birds perch at (9,43), (17,42), (20,47), (25,46),
+and (30,49). They enter alternately from left/right starting at clock seconds
+10,20,30,40,50, glide for two seconds, and stay perched through 59.999. All take
+off together at second zero, clearing the screen by second four. The remainder
+of seconds 0–9 is empty. Timing follows wall-clock seconds, including fractions,
+not the scene animation playhead. In Studio select Computer time or enable Tick
+clock for a sample-time preview. Position, size, color and timing identity survive
+saving and library reuse. Keep speed 1 and extra transforms off for upload.
+
+FLS2 kinds 22–26 are payload-free minute birds, requiring minute_birds=1 in board
+status. Their 64x32 native flight envelope begins at y32. The firmware keeps old
+Island rendering compatible and uses the same glide/flap equations as the preview.
+The diagnostic birdphase <0..60>|auto changes only the birds' render phase for
+hardware checks; it never changes the clock/NTP time. The opt-in hardware script
+scripts/verify_minute_birds.py checks the count milestones and rollover, saves
+board captures in artifacts/adrian2-birds, and restores birdphase auto and weather
+auto in a finally block. Shared workspace recovery preserves the original face.
+
+
+### Bird motion timestamp consistency
+
+Every display frame captures wall time with one gettimeofday call. The displayed
+clock and all five minute birds use seconds and microseconds from that snapshot;
+scene_player_render receives the fraction explicitly and never reads a fresh
+fraction for individual birds. Previously a whole-second rollover between separate
+reads could fabricate a one-second rewind (e.g. 11.999 -> 11.001 -> 12.032), moving
+a landing bird backward for one frame. This is distinct from panel refresh ghosting.
+Regression coverage exercises all arrival/departure paths at one-millisecond
+increments around second boundaries and reproduces the old split-read jump.

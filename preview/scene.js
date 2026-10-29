@@ -6,8 +6,9 @@
   const A=typeof module!=='undefined'&&module.exports?require('./animation.js'):root.WidgetAnimation;
   const I=typeof module!=='undefined'&&module.exports?require('./island-assets.js'):root.IslandAssets;
   const W=typeof module!=='undefined'&&module.exports?require('./scene-weather.js'):root.SceneWeather;
+  const B=typeof module!=='undefined'&&module.exports?require('./minute-birds.js'):root.MinuteBirds;
   const clone=value=>JSON.parse(JSON.stringify(value));
-  const types=['clock','date','seconds','text','box','ellipse','wave','boat','palm','bird','orbit','rain','mountains','moon','flower','fireflies','sprite','weather','forecast','calendar','island',...W.kinds];
+  const types=['clock','date','seconds','text','box','ellipse','wave','boat','palm','bird','orbit','rain','mountains','moon','flower','fireflies','sprite','weather','forecast','calendar','island','minuteBird',...W.kinds];
   const effects=['none','bob','sway','drift','blink','orbit'];
   const palette=['#000000','#edf1da','#b7cfbd','#44c6cb','#126976','#407c59','#a79161','#79583b','#e6b05a','#d4a3d9','#89a7ef','#ef7167','#293c53','#ffffff','#94e780'];
   const num=(n,min,max,fallback)=>typeof n==='number'&&Number.isFinite(n)?Math.max(min,Math.min(max,n)):fallback;
@@ -16,6 +17,7 @@
   function cleanWidget(raw){
     if(!raw||!types.includes(raw.type))throw new Error('Unknown widget type.');
     const w={id:typeof raw.id==='string'?raw.id.slice(0,80):uid(),name:String(raw.name||raw.type).slice(0,60),type:raw.type,x:Math.round(num(raw.x,-63,63,0)),y:Math.round(num(raw.y,-63,63,0)),w:Math.round(num(raw.w,1,64,16)),h:Math.round(num(raw.h,1,64,16)),color:hex(raw.color,'#dde6d9'),secondary:hex(raw.secondary,'#44c6cb'),visible:raw.visible!==false,locked:raw.locked===true,text:String(raw.text||'Hello').slice(0,80),font:raw.font==='block'?'block':'segment',format:raw.format==='24'?'24':'12',flipX:raw.flipX===true,flipY:raw.flipY===true,rotation:[0,90,180,270].includes(raw.rotation)?raw.rotation:0,effect:effects.includes(raw.effect)?raw.effect:'none',speed:num(raw.speed,0,4,1),amount:num(raw.amount,0,10,1),period:Math.round(num(raw.period,1,16,4))};
+    if(w.type==='minuteBird')w.birdIndex=Math.round(num(raw.birdIndex,0,4,0));
     if(w.type==='island')w.islandPart=Math.round(num(raw.islandPart,0,11,0));
     if(W.kinds.includes(w.type)&&raw.weather)w.weather=W.clean(raw.weather);
     w.dateFormat=typeof raw.dateFormat==='string'?raw.dateFormat.slice(0,80):'MMM D';
@@ -47,6 +49,7 @@
   function rgb565(col){return ((Math.max(0,Math.min(255,col[0]))>>3)<<11)|((Math.max(0,Math.min(255,col[1]))>>2)<<5)|(Math.max(0,Math.min(255,col[2]))>>3);}
   function expanded(n){return [Math.round((n>>11)*255/31),Math.round(((n>>5)&63)*255/63),Math.round((n&31)*255/31)];}
   function raster(w,seconds,date){
+    if(w.type==='minuteBird')return B.raster(w,date);
     if(W.kinds.includes(w.type))return W.raster(w,seconds);
     if(w.type==='island')return I.raster(w,seconds,date);
     let [nw,nh]=nativeSize(w);if(w.type==='date'){nw=Math.max(3,D.formatDate(date,w.dateFormat).length*4-1);nh=5;}if(w.type==='text')nw=Math.max(3,D.textValue(w,date).length*4-1);if(['weather','forecast','calendar'].includes(w.type)){nw=64;nh=w.type==='weather'?32:42;}
@@ -123,6 +126,7 @@
     // Header: FLS2, layer count u16, background u16. Each layer has 16-byte header.
     const chunks=[],header=new Uint8Array(8),hv=new DataView(header.buffer);header.set([70,76,83,50]);const widgets=scene.widgets.filter(w=>w.visible);hv.setUint16(4,widgets.length,true);hv.setUint16(6,rgb565(rgba(scene.background)),true);chunks.push(header);
     for(const w of widgets){
+      if(w.type==='minuteBird'){if(w.speed!==1||w.effect!=='none'||w.rotation||w.flipX||w.flipY||w.animation?.keys.length)throw new Error('Minute birds use clock seconds; keep speed 1 and extra transforms off.');const b=new Uint8Array(16),v=new DataView(b.buffer);b[0]=22+w.birdIndex;v.setInt8(1,w.x);v.setInt8(2,w.y);b[3]=w.w;b[4]=w.h;b[5]=b[6]=1;b[7]=12;v.setUint16(8,rgb565(rgba(w.color)),true);chunks.push(b);continue;}
       if(W.kinds.includes(w.type)){
         if(w.effect!=='none'||w.rotation||w.flipX||w.flipY||w.animation?.keys.length)throw new Error('Weather layers support position, size, colors and weather controls; remove extra transforms before upload.');
         const c=W.clean(scene.weather||w.weather),data=W.getData(c.location),coords=(data&&Number.isFinite(data.latitude)&&Number.isFinite(data.longitude)?data:null)||(/^(boston,? (ma|massachusetts))$/i.test(c.location)?{latitude:42.3601,longitude:-71.0589}:null);

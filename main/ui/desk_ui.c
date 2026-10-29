@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <sys/time.h>
 #include "board.h"
 #include "island_face.h"
 #include "scene_player.h"
@@ -75,7 +76,9 @@ static void render(lv_timer_t *timer)
     int64_t now_us = esp_timer_get_time();
     if (mode == TEST && now_us > test_until) { mode = CLOCK; last_second = -1; }
     float phase = (now_us % 3600000000LL) / 1000000.0f;
-    time_t now = time(NULL);
+    // Capture wall-clock seconds and microseconds together, before rendering.
+    struct timeval frame_time;gettimeofday(&frame_time,NULL);
+    time_t now = frame_time.tv_sec;
     struct tm t;
     localtime_r(&now, &t);
     bool valid = board_clock_valid();
@@ -83,7 +86,7 @@ static void render(lv_timer_t *timer)
     memset(pixels, 0, sizeof(pixels));
     if (mode == CLOCK) clock_face(&t, valid, phase);
     if (mode == ISLAND) island_face_render(pixels, &t, valid, now_us);
-    if (mode == CUSTOM) scene_player_render(pixels, &t, valid, now_us / 1000);
+    if (mode == CUSTOM) scene_player_render(pixels, &t, valid, now_us / 1000,frame_time.tv_usec);
     if (mode == TEST) {
         static const uint16_t colors[] = {0xf800, 0x07e0, 0x001f, 0x8410};
         unsigned stage = (now_us / 1000000) % 4;

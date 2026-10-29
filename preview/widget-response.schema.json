@@ -12,6 +12,18 @@
           "name": {
             "type": "string"
           },
+          "birdIndex": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "weather": {
             "anyOf": [
               {
@@ -178,6 +190,7 @@
               "forecast",
               "calendar",
               "island",
+              "minuteBird",
               "weatherSun",
               "weatherClouds",
               "weatherRain",
@@ -409,6 +422,7 @@
         },
         "required": [
           "name",
+          "birdIndex",
           "weather",
           "islandPart",
           "type",
@@ -587,6 +601,18 @@
                   "name": {
                     "type": "string"
                   },
+                  "birdIndex": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 4
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "weather": {
                     "anyOf": [
                       {
@@ -753,6 +779,7 @@
                       "forecast",
                       "calendar",
                       "island",
+                      "minuteBird",
                       "weatherSun",
                       "weatherClouds",
                       "weatherRain",
@@ -984,6 +1011,7 @@
                 },
                 "required": [
                   "name",
+                  "birdIndex",
                   "weather",
                   "islandPart",
                   "type",
