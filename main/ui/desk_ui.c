@@ -86,7 +86,7 @@ static void render(lv_timer_t *timer)
     memset(pixels, 0, sizeof(pixels));
     if (mode == CLOCK) clock_face(&t, valid, phase);
     if (mode == ISLAND) island_face_render(pixels, &t, valid, now_us);
-    if (mode == CUSTOM) scene_player_render(pixels, &t, valid, now_us / 1000,frame_time.tv_usec);
+    if (mode == CUSTOM) scene_player_render(pixels, &t, valid, now_us / 1000,(int64_t)frame_time.tv_sec*1000000+frame_time.tv_usec);
     if (mode == TEST) {
         static const uint16_t colors[] = {0xf800, 0x07e0, 0x001f, 0x8410};
         unsigned stage = (now_us / 1000000) % 4;

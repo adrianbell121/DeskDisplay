@@ -14,6 +14,7 @@ def validate_scene(data):
         raise ValueError("Scene has more than 32 layers")
     birds=False
     weather=False
+    solar=False
     offset = 8
     for _ in range(count):
         if len(data) - offset < 16:
@@ -21,20 +22,25 @@ def validate_scene(data):
         kind, x, y, w, h, frames, fps, fmt, color, secondary, colors, reserved = struct.unpack_from("<BbbBBBBBHHHH", data, offset)
         if (kind > 26 or not -63 <= x <= 63 or not -63 <= y <= 63 or not 1 <= w <= 64
                 or not 1 <= h <= 64 or not 1 <= frames <= 32 or not 1 <= fps <= 30
-                or fmt not in (12, 24) or colors > 255 or (reserved!=0 if kind>=22 else reserved != 76 if 17<=kind<=21 else reserved>15 if kind>=5 else reserved!=0)
+                or fmt not in (12, 24) or colors > 255 or (reserved!=0 if kind>=22 else reserved not in (76,84) if kind==17 else reserved != 76 if 18<=kind<=21 else reserved>15 if kind>=5 else reserved!=0)
                 or (kind and (frames != 1 or colors))):
             raise ValueError("Invalid layer dimensions or metadata")
         birds=birds or kind>=22
         weather=weather or 17<=kind<=21
         offset += 16
-        length = 76 if 17<=kind<=21 else 0 if kind else w * h * frames
+        length = reserved if 17<=kind<=21 else 0 if kind else w * h * frames
         pixels = offset + colors * 2
         end = pixels + length
         if end > len(data):
             raise ValueError("Truncated layer pixels")
         if 17<=kind<=21:
             p=data[pixels:end]
-            if p[0]>6 or p[1]>1 or p[2]>1 or p[3]:raise ValueError('Invalid weather flags')
+            cycle=kind==17 and length==84
+            if p[0]>6 or p[1]>1 or p[2]>1 or p[3]!=int(cycle):raise ValueError('Invalid weather flags')
+            if cycle:
+                horizon=struct.unpack_from('<f',p,76)[0]
+                if not math.isfinite(horizon) or not -63<=horizon<=63:raise ValueError('Invalid solar horizon')
+                solar=True
             values=struct.unpack_from('<18f',p,4)
             bounds=[(0,100),(1,60),(1,5),(-8,8),(0,100),(1,30),(1,3),(0,12),(.099,5),(1,8),(0,3),(5,600),(5,600),(.029, .5),(1,2),(0,4),(-90,90),(-180,180)]
             if any(not math.isfinite(n) or not low<=n<=high for n,(low,high) in zip(values,bounds)) or values[12]<values[11]:raise ValueError('Invalid weather parameters')
@@ -43,7 +49,7 @@ def validate_scene(data):
         offset = end
     if offset != len(data):
         raise ValueError("Unexpected trailing scene bytes")
-    return {"layers": count, "background": background, "bytes": len(data),"weather":weather,"minuteBirds":birds}
+    return {"layers": count, "background": background, "bytes": len(data),"weather":weather,"minuteBirds":birds,"solar":solar}
 
 
 def deploy_scene(link, data, request, progress=None):
@@ -56,6 +62,8 @@ def deploy_scene(link, data, request, progress=None):
         raise RuntimeError('Install minute-bird firmware once before uploading this face.')
     if info['weather'] and 'weather_version=1' not in status:
         raise RuntimeError('Install the weather-enabled firmware once before uploading weather layers.')
+    if info['solar'] and 'solar_cycle=1' not in status:
+        raise RuntimeError('Install the sun/moon firmware once before uploading this face.')
 
     def acknowledged(command, prefix, timeout=4):
         reply = request(link, command, "SCENE ", timeout=timeout)

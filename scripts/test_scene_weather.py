@@ -17,3 +17,9 @@ class WeatherTests(unittest.TestCase):
    with self.assertRaises(ValueError):weather.current_weather('No such city')
   for raw in ['',None,'x'*101]:
    with self.assertRaises(ValueError):weather.current_weather(raw)
+ def test_solar_epoch_days_include_previous_and_next_nights(self):
+  payload={'current':{'temperature_2m':60,'weather_code':0,'time':1793520000},'daily':{'sunrise':[1793445420,1793531880,None],'sunset':[1793482680,1793569020,None]},'timezone':'America/New_York'}
+  with patch.object(weather,'fetch_json',return_value=payload) as get:
+   result=weather.current_weather('Boston, MA');url=get.call_args.args[0]
+   for parameter in ['daily=sunrise%2Csunset','timeformat=unixtime','past_days=1','forecast_days=3']:self.assertIn(parameter,url)
+   self.assertEqual(result['solarDays'],[{'sunrise':1793445420,'sunset':1793482680},{'sunrise':1793531880,'sunset':1793569020}]);self.assertIsInstance(result['observedAt'],str)

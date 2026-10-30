@@ -3,6 +3,7 @@ import json
 import math
 import threading
 import time
+from datetime import datetime, timezone
 from urllib.parse import urlencode
 from urllib.request import Request,urlopen
 
@@ -34,10 +35,13 @@ def current_weather(location):
         places=fetch_json('https://geocoding-api.open-meteo.com/v1/search?'+urlencode({'name':location.strip(),'count':1,'language':'en','format':'json'})).get('results',[])
         if not places:raise ValueError('Location not found. Include a state or country.')
         place=places[0]
-    params={'latitude':place['latitude'],'longitude':place['longitude'],'current':'temperature_2m,weather_code,is_day','temperature_unit':'fahrenheit','timezone':'auto','forecast_days':1}
+    params={'latitude':place['latitude'],'longitude':place['longitude'],'current':'temperature_2m,weather_code,is_day','temperature_unit':'fahrenheit','timezone':'auto','daily':'sunrise,sunset','timeformat':'unixtime','past_days':1,'forecast_days':3}
     raw=fetch_json('https://api.open-meteo.com/v1/forecast?'+urlencode(params));now=raw['current']
     temperature=float(now['temperature_2m']);code=int(now['weather_code'])
     if not math.isfinite(temperature):raise ValueError('Weather provider returned an invalid temperature.')
     result={'location':place['name']+', '+place.get('admin1',place.get('country','')),'latitude':place['latitude'],'longitude':place['longitude'],'condition':condition(code),'weatherCode':code,'tempF':temperature,'isDay':bool(now.get('is_day',1)),'observedAt':now['time'],'timezone':raw.get('timezone'),'fetchedAt':time.time(),'source':'Open-Meteo','sourceUrl':'https://open-meteo.com/'}
+    daily=raw.get('daily',{})
+    result['solarDays']=[{'sunrise':rise,'sunset':setting} for rise,setting in zip(daily.get('sunrise',[]),daily.get('sunset',[])) if isinstance(rise,(int,float)) and isinstance(setting,(int,float)) and math.isfinite(rise) and math.isfinite(setting) and 0<rise<setting]
+    if isinstance(result['observedAt'],(int,float)):result['observedAt']=datetime.fromtimestamp(result['observedAt'],timezone.utc).isoformat()
     with _lock:_cache[key]=result
     return dict(result)

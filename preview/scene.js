@@ -50,7 +50,7 @@
   function expanded(n){return [Math.round((n>>11)*255/31),Math.round(((n>>5)&63)*255/63),Math.round((n&31)*255/31)];}
   function raster(w,seconds,date){
     if(w.type==='minuteBird')return B.raster(w,date);
-    if(W.kinds.includes(w.type))return W.raster(w,seconds);
+    if(W.kinds.includes(w.type))return W.raster(w,seconds,date);
     if(w.type==='island')return I.raster(w,seconds,date);
     let [nw,nh]=nativeSize(w);if(w.type==='date'){nw=Math.max(3,D.formatDate(date,w.dateFormat).length*4-1);nh=5;}if(w.type==='text')nw=Math.max(3,D.textValue(w,date).length*4-1);if(['weather','forecast','calendar'].includes(w.type)){nw=64;nh=w.type==='weather'?32:42;}
     const raw=new Uint8ClampedArray(nw*nh*4),ink=rgba(w.color),accent=rgba(w.secondary),phase=seconds*w.speed*Math.PI*2/w.period;
@@ -108,7 +108,10 @@
   function render(scene,seconds,date,target){
     const out=target||new Uint8ClampedArray(16384),bg=expanded(rgb565(rgba(scene.background)));
     for(let i=0;i<out.length;i+=4){out[i]=bg[0];out[i+1]=bg[1];out[i+2]=bg[2];out[i+3]=255;}
-    for(const w of scene.widgets){if(!w.visible)continue;const motion=A.at(w.animation,seconds),image=raster(W.kinds.includes(w.type)&&scene.weather?{...w,weather:scene.weather}:w,seconds,date),width=Math.max(1,Math.min(256,Math.round(w.w*motion.scale))),height=Math.max(1,Math.min(256,Math.round(w.h*motion.scale)));for(let y=0;y<height;y++)for(let x=0;x<width;x++){const tx=Math.round(x+w.x+motion.x),ty=Math.round(y+w.y+motion.y);if(tx<0||ty<0||tx>63||ty>63)continue;const s=(Math.floor(y*w.h/height)*w.w+Math.floor(x*w.w/width))*4;if(!image[s+3]||!motion.opacity)continue;const dst=(ty*64+tx)*4;for(let c=0;c<3;c++)out[dst+c]=Math.round(out[dst+c]*(1-motion.opacity)+image[s+c]*motion.opacity);}}
+    for(const w of scene.widgets){if(!w.visible)continue;
+      const c=W.clean(scene.weather||w.weather),sky=W.skyPlacement(w,date,c,W.horizon(scene));
+      const motion=A.at(w.animation,seconds),image=raster(W.kinds.includes(w.type)?{...w,weather:c,sky}:w,seconds,date),width=Math.max(1,Math.min(256,Math.round(w.w*motion.scale))),height=Math.max(1,Math.min(256,Math.round(w.h*motion.scale)));
+      for(let y=0;y<height;y++)for(let x=0;x<width;x++){const tx=Math.round(x+w.x+motion.x),ty=Math.round(y+w.y+motion.y+(sky?.offset||0));if(tx<0||ty<0||tx>63||ty>63||sky&&ty>=sky.horizon)continue;const s=(Math.floor(y*w.h/height)*w.w+Math.floor(x*w.w/width))*4;if(!image[s+3]||!motion.opacity)continue;const dst=(ty*64+tx)*4;for(let c=0;c<3;c++)out[dst+c]=Math.round(out[dst+c]*(1-motion.opacity)+image[s+c]*motion.opacity);}}
     return out;
   }
   function fromLegacy(face){
@@ -131,8 +134,10 @@
         if(w.effect!=='none'||w.rotation||w.flipX||w.flipY||w.animation?.keys.length)throw new Error('Weather layers support position, size, colors and weather controls; remove extra transforms before upload.');
         const c=W.clean(scene.weather||w.weather),data=W.getData(c.location),coords=(data&&Number.isFinite(data.latitude)&&Number.isFinite(data.longitude)?data:null)||(/^(boston,? (ma|massachusetts))$/i.test(c.location)?{latitude:42.3601,longitude:-71.0589}:null);
         if(!coords||!Number.isFinite(coords.latitude)||!Number.isFinite(coords.longitude))throw new Error('Refresh current weather for this location before uploading to resolve its coordinates.');
-        const b=new Uint8Array(92),v=new DataView(b.buffer);b[0]=17+W.kinds.indexOf(w.type);v.setInt8(1,w.x);v.setInt8(2,w.y);b[3]=w.w;b[4]=w.h;b[5]=b[6]=1;b[7]=12;v.setUint16(8,rgb565(rgba(w.color)),true);v.setUint16(10,rgb565(rgba(w.secondary)),true);v.setUint16(14,76,true);
+        const cycle=c.sunCycle&&w.type==='weatherSun',size=cycle?84:76;
+        const b=new Uint8Array(16+size),v=new DataView(b.buffer);b[0]=17+W.kinds.indexOf(w.type);v.setInt8(1,w.x);v.setInt8(2,w.y);b[3]=w.w;b[4]=w.h;b[5]=b[6]=1;b[7]=12;v.setUint16(8,rgb565(rgba(w.color)),true);v.setUint16(10,rgb565(rgba(w.secondary)),true);v.setUint16(14,size,true);
         b[16]=c.condition==='auto'?0:1+W.conditions.indexOf(c.condition);b[17]=c.enabled?1:0;b[18]=c.sunRays?1:0;
+        if(cycle){b[19]=1;v.setFloat32(92,W.horizon(scene),true);v.setUint16(96,rgb565(rgba(c.moonColor)),true);v.setUint16(98,rgb565(rgba(c.moonAccent)),true);}
         const values=['rainDensity','rainSpeed','rainLength','rainSlant','snowDensity','snowSpeed','snowSize','snowDrift','snowDriftSpeed','cloudCount','cloudSpeed','lightningMin','lightningMax','lightningDuration','lightningWidth'].map(k=>c[k]);values.push(w.speed,coords.latitude,coords.longitude);values.forEach((n,i)=>v.setFloat32(20+i*4,n,true));chunks.push(b);continue;
       }
       if(['weather','forecast','calendar'].includes(w.type)||w.binding.startsWith('weather.')||w.binding==='calendar.events')throw new Error('Weather/calendar use sample or connected desktop data. Convert to pixels for an explicit snapshot; live provider sync to the board is not installed.');

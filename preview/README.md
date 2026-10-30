@@ -296,9 +296,44 @@ auto in a finally block. Shared workspace recovery preserves the original face.
 
 Every display frame captures wall time with one gettimeofday call. The displayed
 clock and all five minute birds use seconds and microseconds from that snapshot;
-scene_player_render receives the fraction explicitly and never reads a fresh
+scene_player_render receives the complete wall timestamp explicitly and never reads a fresh
 fraction for individual birds. Previously a whole-second rollover between separate
 reads could fabricate a one-second rewind (e.g. 11.999 -> 11.001 -> 12.032), moving
 a landing bird backward for one frame. This is distinct from panel refresh ghosting.
 Regression coverage exercises all arrival/departure paths at one-millisecond
 increments around second boundaries and reproduces the old split-read jump.
+
+## Adrian2 sun and moon
+
+Island — Adrian2 enables **Scene weather → Adjust sun, clouds, rain, snow, and
+lightning → Sun / moon → Follow sunrise / sunset**. The same movable sky layer
+shows a sun between sunrise (inclusive) and sunset, and a crescent during the
+sunset-to-next-sunrise interval. Clear and partly cloudy weather show the sky
+body; the other conditions keep their existing clouds/precipitation behavior.
+Moon colors are editable in that group; the layer's usual colors control the sun.
+
+The sky layer's Y remains the highest position (row 30 in Adrian2). The top of
+the visible permanent-water layer is the horizon (row 55, leaving nine water
+rows). At the lowest position the icon's center meets row 55 (top at row 50
+for the 11-pixel icon), leaving its upper half visible. Sunset switches directly
+from half-visible sun to half-visible moon; sunrise does the reverse.
+A sine arc scales to the real duration of each day/night. The sky layer
+is behind all wave layers and clips at the horizon. Other widget geometry and
+the minute-bird timing remain unchanged. Select **Sample time** on a date within
+the fetched schedule to preview day/night, then return to **Computer time**.
+
+Both desktop and board request Open-Meteo daily sunrise/sunset as UTC epoch
+seconds, with yesterday and the next two days included, alongside the ten-minute
+weather update. Absolute intervals handle midnight and EST/EDT changes without
+assuming twelve-hour days. No PC is needed by the board. Failed updates retain
+the last valid schedule; outside its coverage, no sky position is guessed.
+
+The sky extension is FLS2 kind 17 with an 84-byte payload and flag byte 3 = 1:
+the legacy 76 bytes, horizon float32, moon RGB565, detail RGB565. Other weather
+layers retain the legacy payload. Upload checks require `solar_cycle=1`.
+`weather sky` reports fetched dates and current phase. `weather skytime EPOCH`
+temporarily previews a solar instant without changing the clock; restore with
+`weather skytime auto`. The opt-in `scripts/verify_solar_board.py` checks live
+fetches, dawn/day/dusk/night, peak height, horizon clipping and restores all
+overrides. Board captures and its report are in `artifacts/solar-cycle/`.
+Source: [Open-Meteo forecast API](https://open-meteo.com/en/docs).

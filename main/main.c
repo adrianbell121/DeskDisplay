@@ -34,7 +34,7 @@ static void status(void)
     if (lvgl_port_lock(100)) { mode = desk_ui_mode_name(); desk_ui_get_state(&ui); lvgl_port_unlock(); }
     printf("STATUS version=0.1.0 panel=64x64 mode=%s brightness=%u clock=%s audio=%s frames=%" PRIu32
            " heap=%u min_heap=%u uptime=%" PRIi64 " utc=%" PRIi64
-           " ui_minute=%d birds=%s birds_next_ms=%d scene_version=2 weather_version=1 minute_birds=1"
+           " ui_minute=%d birds=%s birds_next_ms=%d scene_version=2 weather_version=1 minute_birds=1 solar_cycle=1"
            " wifi=%s ntp_last=%" PRIu32 " ntp_syncs=%" PRIu32 " ntp_interval_s=%u timezone=America/New_York local=%s zone=%s utc_offset=%s\n",
            mode, brightness, board_clock_valid() ? "set" : "unset", esp_err_to_name(board_audio_status()),
            board_display_frames(), (unsigned)esp_get_free_heap_size(), (unsigned)esp_get_minimum_free_heap_size(),

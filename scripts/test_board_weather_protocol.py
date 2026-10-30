@@ -21,3 +21,16 @@ class BoardWeatherProtocolTests(unittest.TestCase):
   data=bytearray(good);struct.pack_into('<f',data,28,float('nan'))
   with self.assertRaises(ValueError):validate_scene(data)
   with self.assertRaises(ValueError):validate_scene(good[:-1])
+ def test_solar_extension_and_firmware_capability(self):
+  data=bytearray(self.package());struct.pack_into('<H',data,22,84);data[27]=1;data+=struct.pack('<fHH',55,65535,12345)
+  self.assertTrue(validate_scene(data)['solar'])
+  with self.assertRaisesRegex(RuntimeError,'sun/moon'):
+   deploy_scene(None,data,lambda *a,**kw:'STATUS scene_version=2 weather_version=1')
+  for offset,value in [(22,76),(27,0),(8,18)]:
+   bad=bytearray(data);bad[offset]=value
+   with self.assertRaises(ValueError):validate_scene(bad)
+  bad=bytearray(data);struct.pack_into('<f',bad,100,float('nan'))
+  with self.assertRaises(ValueError):validate_scene(bad)
+ def test_javascript_solar_fixture(self):
+  from pathlib import Path
+  self.assertTrue(validate_scene((Path(__file__).resolve().parent.parent/'artifacts/solar-tests/solar.fls').read_bytes())['solar'])
