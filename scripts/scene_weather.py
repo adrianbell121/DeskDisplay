@@ -31,6 +31,8 @@ def current_weather(location):
         if cached and time.time()-cached['fetchedAt']<600:return dict(cached)
     if key in ('boston, ma','boston ma','boston, massachusetts'):
         place={'name':'Boston','admin1':'Massachusetts','latitude':42.3601,'longitude':-71.0589}
+    elif key in ('bedford, ma, 01730','bedford, ma 01730','bedford, ma','01730'):
+        place={'name':'Bedford','admin1':'Massachusetts','latitude':42.49065,'longitude':-71.27617}
     else:
         places=fetch_json('https://geocoding-api.open-meteo.com/v1/search?'+urlencode({'name':location.strip(),'count':1,'language':'en','format':'json'})).get('results',[])
         if not places:raise ValueError('Location not found. Include a state or country.')

@@ -2,6 +2,9 @@ param([switch]$CheckOnly)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $url = 'http://127.0.0.1:8765/'
+$boardAddress = Join-Path $projectRoot 'data\board-dashboard.url'
+$boardHosted = Test-Path -LiteralPath $boardAddress
+if ($boardHosted) { $url = (Get-Content -LiteralPath $boardAddress -Raw).Trim().TrimEnd('/') + '/' }
 function Test-Dashboard {
     try {
         $result = Invoke-RestMethod ($url + 'api/capabilities') -TimeoutSec 2
@@ -10,6 +13,7 @@ function Test-Dashboard {
 }
 try {
     if (-not (Test-Dashboard)) {
+        if ($boardHosted) { throw "The clock is not reachable at $url Keep it powered and connect this computer to the same Wi-Fi. If its address changed, update data\board-dashboard.url using the address reported by the clock's USB web command." }
         $pythonPath = Join-Path $projectRoot '.tools\host-python\Scripts\python.exe'
         if (-not (Test-Path -LiteralPath $pythonPath)) { throw 'Dashboard Python runtime is missing. Keep the DeskDisplay folder in its original location.' }
         $serverPath = Join-Path $projectRoot 'scripts\preview_server.py'
@@ -20,7 +24,7 @@ try {
             Start-Sleep -Milliseconds 300
         }
     }
-    if ($CheckOnly) { Write-Output 'Dashboard ready; existing server reused when available.' }
+    if ($CheckOnly) { Write-Output "Dashboard ready at $url" }
     else { Start-Process $url }
 } catch {
     Add-Type -AssemblyName PresentationFramework

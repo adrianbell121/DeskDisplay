@@ -6,6 +6,7 @@
 #include "board.h"
 #include "network.h"
 #include "weather.h"
+#include "dashboard.h"
 #include "desk_ui.h"
 #include "scene_store.h"
 #include "scene_player.h"
@@ -89,6 +90,7 @@ static void command(char *line)
     else if (!strcmp(line, "restart")) {puts("RESTARTING");fflush(stdout);vTaskDelay(pdMS_TO_TICKS(100));esp_restart();}
     else if (!strcmp(line, "scene")) scene_store_command(arg);
     else if (!strcmp(line, "weather")) board_weather_command(arg);
+    else if (!strcmp(line, "web")) dashboard_status();
     else if (!strcmp(line, "wifi")) board_network_command(arg);
     else if (!strcmp(line, "time") && arg && number(arg, &value)) {
         esp_err_t err = board_clock_set((time_t)value);
@@ -156,6 +158,8 @@ void app_main(void)
     esp_err_t network_err = board_network_init();
     if (network_err != ESP_OK) ESP_LOGW("deskdisplay", "Network service: %s", esp_err_to_name(network_err));
     board_weather_init();
+    esp_err_t web_err=dashboard_init();
+    if(web_err!=ESP_OK)ESP_LOGW("deskdisplay","Dashboard: %s",esp_err_to_name(web_err));
     puts("DESKDISPLAY READY; short BOOT: next mode; hold BOOT 1 second: speaker test; send help");
     fflush(stdout);
     char line[128];

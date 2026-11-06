@@ -9,6 +9,8 @@
 #include "esp_lvgl_port.h"
 #include "esp_partition.h"
 #include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
 
 /* Two raw flash slots. A new header is written last; interrupted writes retain
  * the other slot. No filesystem, credentials, or existing NVS data is involved. */
@@ -20,6 +22,9 @@ static size_t expected, received;
 static uint32_t expected_crc, sequence;
 static int active_slot=-1;
 static int64_t last_chunk;
+static SemaphoreHandle_t mutex;
+static size_t active_size;
+static uint32_t live_crc,saved_crc;
 typedef struct { uint32_t magic, sequence, size, crc; } record_t;
 static uint32_t crc32(const uint8_t *data, size_t size)
 {
@@ -35,6 +40,7 @@ static uint8_t *allocate(size_t size)
 }
 esp_err_t scene_store_init(void)
 {
+    mutex=xSemaphoreCreateMutex();if(!mutex)return ESP_ERR_NO_MEM;
     partition=esp_partition_find_first(ESP_PARTITION_TYPE_DATA,ESP_PARTITION_SUBTYPE_ANY,"scenes");
     if(!partition||partition->size<2*SLOT_BYTES)return ESP_ERR_NOT_FOUND;
     for(int slot=0;slot<2;slot++){
@@ -42,25 +48,25 @@ esp_err_t scene_store_init(void)
         if(esp_partition_read(partition,slot*SLOT_BYTES,&h,sizeof(h))!=ESP_OK||h.magic!=STORE_MAGIC||h.size<8||h.size>SCENE_MAX_BYTES||h.sequence<=sequence)continue;
         uint8_t *candidate=allocate(h.size);if(!candidate)continue;
         if(esp_partition_read(partition,slot*SLOT_BYTES+sizeof(h),candidate,h.size)==ESP_OK&&crc32(candidate,h.size)==h.crc&&scene_player_set(candidate,h.size,esp_timer_get_time()/1000)){
-            free(active);active=candidate;sequence=h.sequence;active_slot=slot;
+            free(active);active=candidate;active_size=h.size;live_crc=saved_crc=h.crc;sequence=h.sequence;active_slot=slot;
         }else free(candidate);
     }
     return ESP_OK;
 }
 static int nibble(char c)
 { return c>='0'&&c<='9'?c-'0':c>='a'&&c<='f'?c-'a'+10:c>='A'&&c<='F'?c-'A'+10:-1; }
-static esp_err_t persist_scene(void)
+static esp_err_t persist_scene(const uint8_t *data,size_t size,uint32_t crc)
 {
     int slot=active_slot==0?1:0;
-    record_t h={STORE_MAGIC,sequence+1,(uint32_t)expected,expected_crc};
-    size_t erase=(sizeof(h)+expected+4095)&~(size_t)4095;
+    record_t h={STORE_MAGIC,sequence+1,(uint32_t)size,crc};
+    size_t erase=(sizeof(h)+size+4095)&~(size_t)4095;
     esp_err_t err=esp_partition_erase_range(partition,slot*SLOT_BYTES,erase);
-    if(err==ESP_OK)err=esp_partition_write(partition,slot*SLOT_BYTES+sizeof(h),upload,expected);
+    if(err==ESP_OK)err=esp_partition_write(partition,slot*SLOT_BYTES+sizeof(h),data,size);
     if(err==ESP_OK)err=esp_partition_write(partition,slot*SLOT_BYTES,&h,sizeof(h));
-    if(err==ESP_OK){active_slot=slot;sequence=h.sequence;}
+    if(err==ESP_OK){active_slot=slot;sequence=h.sequence;saved_crc=crc;}
     return err;
 }
-void scene_store_command(const char *arg)
+static void command_locked(const char *arg)
 {
     if(!arg){puts("SCENE ERROR missing operation");return;}
     if(!strcmp(arg,"abort")){abort_upload();puts("SCENE ABORTED");return;}
@@ -87,11 +93,27 @@ void scene_store_command(const char *arg)
         if(received!=expected||crc32(upload,expected)!=expected_crc||!scene_player_validate(upload,expected)){abort_upload();puts("SCENE ERROR incomplete, corrupt, or invalid scene");return;}
         // Reserve the renderer before changing either flash or its live data.
         if(!lvgl_port_lock(2000)){puts("SCENE ERROR display busy; retry commit");return;}
-        esp_err_t err=persist_scene();
-        if(err==ESP_OK){scene_player_set(upload,expected,esp_timer_get_time()/1000);free(active);active=upload;upload=NULL;expected=received=0;desk_ui_custom_changed();}
+        esp_err_t err=persist_scene(upload,expected,expected_crc);
+        if(err==ESP_OK){scene_player_set(upload,expected,esp_timer_get_time()/1000);free(active);active=upload;active_size=expected;live_crc=expected_crc;upload=NULL;expected=received=0;desk_ui_custom_changed();}
         lvgl_port_unlock();
         if(err==ESP_OK)puts("SCENE OK saved=1 mode=custom");else printf("SCENE ERROR flash %s\n",esp_err_to_name(err));
         return;
     }
     puts("SCENE ERROR invalid operation");
 }
+void scene_store_command(const char *arg){xSemaphoreTake(mutex,portMAX_DELAY);command_locked(arg);xSemaphoreGive(mutex);}
+esp_err_t scene_store_live(const uint8_t *data,size_t size){
+    if(!scene_player_validate(data,size))return ESP_ERR_INVALID_ARG;
+    uint8_t *copy=allocate(size);if(!copy)return ESP_ERR_NO_MEM;memcpy(copy,data,size);
+    xSemaphoreTake(mutex,portMAX_DELAY);
+    if(upload){xSemaphoreGive(mutex);free(copy);return ESP_ERR_INVALID_STATE;}
+    if(!lvgl_port_lock(1000)){xSemaphoreGive(mutex);free(copy);return ESP_ERR_TIMEOUT;}
+    scene_player_set_live(copy,size,esp_timer_get_time()/1000);free(active);active=copy;active_size=size;live_crc=crc32(data,size);desk_ui_custom_changed();
+    lvgl_port_unlock();xSemaphoreGive(mutex);return ESP_OK;
+}
+esp_err_t scene_store_save_live(void){
+    xSemaphoreTake(mutex,portMAX_DELAY);
+    esp_err_t err=live_crc==saved_crc?ESP_OK:partition&&active?persist_scene(active,active_size,live_crc):ESP_ERR_INVALID_STATE;
+    xSemaphoreGive(mutex);return err;
+}
+void scene_store_crc(uint32_t *live,uint32_t *saved){xSemaphoreTake(mutex,portMAX_DELAY);*live=live_crc;*saved=saved_crc;xSemaphoreGive(mutex);}

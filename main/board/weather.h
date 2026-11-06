@@ -10,3 +10,4 @@ void board_weather_command(const char *arg);
 
 void board_weather_note_strike(bool forced);
 bool board_weather_sky(double epoch,solar_phase_t *phase);
+char *board_weather_json(void);

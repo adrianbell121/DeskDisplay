@@ -31,7 +31,7 @@ static void line(int x, int y, int tx, int ty, uint16_t color)
     }
 }
 
-// Compact mixed-case 3x5 font. Each character occupies four pixels.
+// Compact mixed-case font; N needs five columns for a clear diagonal.
 static unsigned glyph(char c)
 {
     switch (c) {
@@ -50,7 +50,7 @@ static unsigned glyph(char c)
     case 'F': return 0x79a4;
     case 'J': return 0x126a;
     case 'M': return 0x5fed;
-    case 'N': return 0x5ffd;
+    case 'N': return 0x11cd671;
     case 'O': return 0x7b6f;
     case 'P': return 0x7be4;
     case 'S': return 0x79cf;
@@ -75,11 +75,19 @@ static unsigned glyph(char c)
 }
 static void text(const char *s, int x, int y, uint16_t color)
 {
-    for (; *s; s++, x += 4) {
+    for (; *s; s++) {
+        int width = *s == 'N' ? 5 : 3;
         unsigned bits = glyph(*s);
-        for (int row = 0; row < 5; row++) for (int col = 0; col < 3; col++)
-            if (bits & (1U << (14 - row * 3 - col))) dot(x + col, y + row, color);
+        for (int row = 0; row < 5; row++) for (int col = 0; col < width; col++)
+            if (bits & (1U << (width * 5 - 1 - row * width - col))) dot(x + col, y + row, color);
+        x += width + 1;
     }
+}
+static int text_width(const char *s)
+{
+    int width = -1;
+    for (; *s; s++) width += *s == 'N' ? 6 : 4;
+    return width;
 }
 static void digit(int n, int x, int y, uint16_t color)
 {
@@ -192,7 +200,7 @@ void island_element_render(uint16_t *pixels, unsigned part, const struct tm *tim
         static const char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
         char date[12];
         snprintf(date, sizeof(date), "%s %d", months[time->tm_mon], time->tm_mday);
-        if (part == 1) text(date, (64 - ((int)strlen(date) * 4 - 1)) / 2, 4, muted);
+        if (part == 1) text(date, (64 - text_width(date)) / 2, 4, muted);
         if (part == 0) {
         int hour = time->tm_hour % 12;
         if (!hour) hour = 12;

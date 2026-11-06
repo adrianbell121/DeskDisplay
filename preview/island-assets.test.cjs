@@ -1,6 +1,14 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const S=require('./scene.js'),Store=require('./studio-state.js');
 const date=new Date(2026,9,28,18,2,42);
+
+test('November date has a five-column diagonal N and stays centered',()=>{
+ const w=S.boardIsland().widgets[1],image=S.raster(w,0,new Date(2026,10,6,12));
+ const rows=Array.from({length:5},(_,y)=>Array.from({length:5},(_,x)=>image[(y*64+21+x)*4+3]?'1':'0').join(''));
+ assert.deepEqual(rows,['10001','11001','10101','10011','10001']);
+ const xs=[];for(let i=3;i<image.length;i+=4)if(image[i])xs.push(((i-3)/4)%64);
+ assert.equal(Math.min(...xs),21);assert.equal(Math.max(...xs),41);
+});
 test('board Island contains twelve independently editable native layers with exact geometry',()=>{
  const f=S.boardIsland();assert.equal(f.background,'#000000');assert.equal(f.widgets.length,12);assert.equal(new Set(f.widgets.map(w=>w.id)).size,12);
  const b=S.compile(f);assert.equal(b.length,200);

@@ -28,6 +28,16 @@ static int64_t last_sync,flash_until;
 static solar_day_t solar_days[4];
 static unsigned solar_count;
 static int64_t sky_override;
+static double temperature_f;
+static bool have_temperature;
+char *board_weather_json(void){
+ solar_day_t days[4];portENTER_CRITICAL(&mux);unsigned count=solar_count;float lat=latitude,lon=longitude;double temp=temperature_f;bool valid=have_temperature;memcpy(days,solar_days,sizeof(days));portEXIT_CRITICAL(&mux);
+ int condition=board_weather_condition();if(!valid||condition<1||condition>6)return NULL;
+ static const char *conditions[]={"unknown","sunny","partly-cloudy","cloudy","rainy","storm","snowy"};
+ cJSON *out=cJSON_CreateObject(),*dates=cJSON_CreateArray();cJSON_AddStringToObject(out,"condition",conditions[condition]);cJSON_AddNumberToObject(out,"tempF",temp);cJSON_AddNumberToObject(out,"latitude",lat);cJSON_AddNumberToObject(out,"longitude",lon);cJSON_AddNumberToObject(out,"observedAt",(double)time(NULL)*1000);cJSON_AddStringToObject(out,"timezone","America/New_York");cJSON_AddItemToObject(out,"solarDays",dates);
+ for(unsigned i=0;i<count;i++){cJSON *d=cJSON_CreateObject();cJSON_AddNumberToObject(d,"sunrise",days[i].sunrise);cJSON_AddNumberToObject(d,"sunset",days[i].sunset);cJSON_AddItemToArray(dates,d);}
+ char *json=cJSON_PrintUnformatted(out);cJSON_Delete(out);return json;
+}
 bool board_weather_sky(double epoch,solar_phase_t *phase){
  solar_day_t days[4];portENTER_CRITICAL(&mux);unsigned count=solar_count;int64_t forced=sky_override;memcpy(days,solar_days,sizeof(days));portEXIT_CRITICAL(&mux);
  return solar_phase(days,count,forced?forced:epoch,phase);
@@ -35,7 +45,7 @@ bool board_weather_sky(double epoch,solar_phase_t *phase){
 static const char *names[]={"unknown","sunny","partly-cloudy","cloudy","rainy","storm","snowy"};
 int board_weather_condition(void){int forced=atomic_load(&override);return forced?forced:atomic_load(&current);}
 int64_t board_weather_flash_until(void){portENTER_CRITICAL(&mux);int64_t t=flash_until;portEXIT_CRITICAL(&mux);return t;}
-void board_weather_configure(float lat,float lon,bool active){portENTER_CRITICAL(&mux);if(latitude!=lat||longitude!=lon||enabled!=active){latitude=lat;longitude=lon;enabled=active;revision++;solar_count=0;atomic_store(&current,0);}portEXIT_CRITICAL(&mux);}
+void board_weather_configure(float lat,float lon,bool active){portENTER_CRITICAL(&mux);if(latitude!=lat||longitude!=lon||enabled!=active){latitude=lat;longitude=lon;enabled=active;revision++;solar_count=0;have_temperature=false;atomic_store(&current,0);}portEXIT_CRITICAL(&mux);}
 static int classify(int code){if(code==0)return 1;if(code==1||code==2)return 2;if(code==3||code==45||code==48)return 3;if(code==71||code==73||code==75||code==77||code==85||code==86)return 6;if(code>=95)return 5;return 4;}
 static void worker(void *arg){
  unsigned seen=~0U;int64_t next=0;
@@ -45,7 +55,7 @@ static void worker(void *arg){
   int64_t now=esp_timer_get_time();
   if(active&&!strcmp(board_network_status(),"connected")&&now>=next){
    atomic_fetch_add(&attempts,1);atomic_store(&last_result,-1);
-   next=now+30000000;char url[320];snprintf(url,sizeof(url),"https://api.open-meteo.com/v1/forecast?latitude=%.5f&longitude=%.5f&current=weather_code&daily=sunrise,sunset&timezone=auto&timeformat=unixtime&past_days=1&forecast_days=3",lat,lon);
+   next=now+30000000;char url[360];snprintf(url,sizeof(url),"https://api.open-meteo.com/v1/forecast?latitude=%.5f&longitude=%.5f&current=weather_code,temperature_2m&temperature_unit=fahrenheit&daily=sunrise,sunset&timezone=auto&timeformat=unixtime&past_days=1&forecast_days=3",lat,lon);
    esp_http_client_config_t cfg={.url=url,.crt_bundle_attach=esp_crt_bundle_attach,.timeout_ms=30000,.buffer_size=1024,.addr_type=HTTP_ADDR_TYPE_INET};
    esp_http_client_handle_t client=esp_http_client_init(&cfg);
    if(client){atomic_store(&last_result,-2);char *body=heap_caps_calloc(1,8193,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);int total=0;bool ok=false;
@@ -56,7 +66,8 @@ static void worker(void *arg){
      cJSON *daily=cJSON_GetObjectItemCaseSensitive(json,"daily"),*rises=cJSON_GetObjectItemCaseSensitive(daily,"sunrise"),*sets=cJSON_GetObjectItemCaseSensitive(daily,"sunset");
      solar_day_t days[4]={0};unsigned count=0;
      for(int i=0;i<4;i++){cJSON *rise=cJSON_GetArrayItem(rises,i),*setting=cJSON_GetArrayItem(sets,i);if(cJSON_IsNumber(rise)&&cJSON_IsNumber(setting)&&isfinite(rise->valuedouble)&&isfinite(setting->valuedouble)&&rise->valuedouble>0&&setting->valuedouble>rise->valuedouble&&setting->valuedouble<4102444800.0)days[count++]=(solar_day_t){(int64_t)rise->valuedouble,(int64_t)setting->valuedouble};}
-     if(cJSON_IsNumber(item)){portENTER_CRITICAL(&mux);if(revision==rev){atomic_store(&current,classify(item->valueint));if(count){memcpy(solar_days,days,sizeof(days));solar_count=count;}last_sync=esp_timer_get_time();atomic_fetch_add(&syncs,1);ok=true;}portEXIT_CRITICAL(&mux);}cJSON_Delete(json);
+     cJSON *temp=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(json,"current"),"temperature_2m");
+     if(cJSON_IsNumber(item)){portENTER_CRITICAL(&mux);if(revision==rev){atomic_store(&current,classify(item->valueint));if(cJSON_IsNumber(temp)&&isfinite(temp->valuedouble)){temperature_f=temp->valuedouble;have_temperature=true;}if(count){memcpy(solar_days,days,sizeof(days));solar_count=count;}last_sync=esp_timer_get_time();atomic_fetch_add(&syncs,1);ok=true;}portEXIT_CRITICAL(&mux);}cJSON_Delete(json);
     }}
     esp_http_client_cleanup(client);free(body);if(ok)next=esp_timer_get_time()+600000000;
    }

@@ -70,6 +70,13 @@ bool scene_player_set(const uint8_t *data, size_t size, int64_t now_ms)
     return true;
 }
 bool scene_player_ready(void) { return ready; }
+bool scene_player_set_live(const uint8_t *data,size_t size,int64_t now_ms)
+{
+    bool was_ready=ready;int64_t previous=started;
+    bool ok=scene_player_set(data,size,now_ms);
+    if(ok&&was_ready)started=previous;
+    return ok;
+}
 static void dot(int x, int y, uint16_t color)
 {
     if (x < 0 || y < 0 || x >= (int)native_w || y >= (int)native_h) return;

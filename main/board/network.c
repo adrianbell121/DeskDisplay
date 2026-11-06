@@ -85,7 +85,7 @@ static void network_worker(void *arg)
                 err=esp_wifi_set_config(WIFI_IF_STA,&cfg);
                 memset(&c,0,sizeof(c));memset(&cfg,0,sizeof(cfg));
                 if(err==ESP_OK)err=esp_wifi_start();
-                if(err==ESP_OK){started=true;atomic_store(&phase,CONNECTING);backoff=1;}
+                if(err==ESP_OK){esp_wifi_set_ps(WIFI_PS_NONE);started=true;atomic_store(&phase,CONNECTING);backoff=1;}
                 else{atomic_store(&phase,FAILED);ESP_LOGW("network","Wi-Fi setup: %s",esp_err_to_name(err));}
             }else if(err==ESP_ERR_NVS_NOT_FOUND)atomic_store(&phase,UNCONFIGURED);
             else {atomic_store(&phase,FAILED);ESP_LOGW("network","Saved Wi-Fi configuration unavailable");}
