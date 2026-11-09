@@ -43,6 +43,17 @@ class FakeBoard:
 
 
 class SceneTests(unittest.TestCase):
+    def test_custom_date_font_and_malformed_characters(self):
+        data=(ROOT/'artifacts/widget-editor-tests/date-font.fls').read_bytes()
+        self.assertTrue(validate_scene(data)['dateGlyphs'])
+        font=8+16+16
+        for index,value in [(font,0),(font+1,2),(font+2,31),(font+3,9),(font+4,32)]:
+            bad=bytearray(data);bad[index]=value
+            with self.assertRaises(ValueError):validate_scene(bad)
+        board=FakeBoard()
+        with self.assertRaisesRegex(RuntimeError,'editable-date'):deploy_scene(None,data,board.request)
+        self.assertEqual(board.commands,['status'])
+
     def test_cross_language_fixtures_and_transfer(self):
         fixtures=list((ROOT/'artifacts/studio-tests').glob('*.fls'))
         self.assertEqual(len(fixtures),7,'Run node --test preview/scene.test.cjs first')

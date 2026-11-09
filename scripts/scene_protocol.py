@@ -15,24 +15,34 @@ def validate_scene(data):
     birds=False
     weather=False
     solar=False
+    date_glyphs=False
     offset = 8
     for _ in range(count):
         if len(data) - offset < 16:
             raise ValueError("Truncated layer header")
         kind, x, y, w, h, frames, fps, fmt, color, secondary, colors, reserved = struct.unpack_from("<BbbBBBBBHHHH", data, offset)
-        if (kind > 26 or not -63 <= x <= 63 or not -63 <= y <= 63 or not 1 <= w <= 64
+        if (kind > 27 or not -63 <= x <= 63 or not -63 <= y <= 63 or not 1 <= w <= 64
                 or not 1 <= h <= 64 or not 1 <= frames <= 32 or not 1 <= fps <= 30
-                or fmt not in (12, 24) or colors > 255 or (reserved!=0 if kind>=22 else reserved not in (76,84) if kind==17 else reserved != 76 if 18<=kind<=21 else reserved>15 if kind>=5 else reserved!=0)
+                or fmt not in (12, 24) or colors > 255 or (not (9<=reserved<=450 and (reserved-2)%7==0) if kind==27 else reserved!=0 if kind>=22 else reserved not in (76,84) if kind==17 else reserved != 76 if 18<=kind<=21 else reserved>15 if kind>=5 else reserved!=0)
                 or (kind and (frames != 1 or colors))):
             raise ValueError("Invalid layer dimensions or metadata")
-        birds=birds or kind>=22
+        birds=birds or 22<=kind<=26
         weather=weather or 17<=kind<=21
         offset += 16
-        length = reserved if 17<=kind<=21 else 0 if kind else w * h * frames
+        length = reserved if 17<=kind<=21 or kind==27 else 0 if kind else w * h * frames
         pixels = offset + colors * 2
         end = pixels + length
         if end > len(data):
             raise ValueError("Truncated layer pixels")
+        if kind==27:
+            date_glyphs=True
+            p=data[pixels:end]
+            if p[0]!=1 or not 1<=p[1]<=64 or len(p)!=2+7*p[1]:raise ValueError('Invalid character font')
+            seen=set()
+            for i in range(p[1]):
+                ch,width,*rows=p[2+i*7:9+i*7]
+                if not 32<=ch<=126 or ch in seen or not 1<=width<=8 or any(r>=1<<width for r in rows):raise ValueError('Invalid character pixels')
+                seen.add(ch)
         if 17<=kind<=21:
             p=data[pixels:end]
             cycle=kind==17 and length==84
@@ -49,7 +59,7 @@ def validate_scene(data):
         offset = end
     if offset != len(data):
         raise ValueError("Unexpected trailing scene bytes")
-    return {"layers": count, "background": background, "bytes": len(data),"weather":weather,"minuteBirds":birds,"solar":solar}
+    return {"layers": count, "background": background, "bytes": len(data),"weather":weather,"minuteBirds":birds,"solar":solar,"dateGlyphs":date_glyphs}
 
 
 def deploy_scene(link, data, request, progress=None):
@@ -64,6 +74,8 @@ def deploy_scene(link, data, request, progress=None):
         raise RuntimeError('Install the weather-enabled firmware once before uploading weather layers.')
     if info['solar'] and 'solar_cycle=1' not in status:
         raise RuntimeError('Install the sun/moon firmware once before uploading this face.')
+    if info['dateGlyphs'] and 'date_glyphs=1' not in status:
+        raise RuntimeError('Install the editable-date firmware once before uploading custom date characters.')
 
     def acknowledged(command, prefix, timeout=4):
         reply = request(link, command, "SCENE ", timeout=timeout)

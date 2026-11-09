@@ -11,6 +11,8 @@ const specs=[
 const glyphs={"0": 31599, "1": 11415, "2": 29671, "3": 29647, "4": 23497, "5": 31183, "6": 31215, "7": 29257, "8": 31727, "9": 31695, "A": 11245, "D": 27502, "F": 31140, "J": 4714, "M": 24557, "N": 18667121, "O": 31599, "P": 31716, "S": 31183, "a": 3199, "b": 18862, "c": 3879, "e": 4071, "g": 3961, "l": 18723, "n": 3437, "o": 3951, "p": 3964, "r": 3428, "t": 11923, "u": 2927, "v": 2922, "y": 2937, "-": 448, ":": 1040};
 const colors=h=>[parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
 const quant=c=>[(c[0]>>3)*255/31,(c[1]>>2)*255/63,(c[2]>>3)*255/31].map(Math.round);
+function character(ch,overrides={}){if(overrides[ch])return overrides[ch];const width=ch==='N'?5:3,bits=glyphs[ch]||0;return Array.from({length:5},(_,y)=>Array.from({length:width},(_,x)=>bits&(1<<(width*5-1-y*width-x))?'1':'0').join(''));}
+function cleanGlyphs(raw){if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new Error('Expected character designs.');const out={};if(Object.keys(raw).length>64)throw new Error('Use at most 64 custom characters.');for(const [ch,rows]of Object.entries(raw)){if(ch.length!==1||ch.charCodeAt(0)<32||ch.charCodeAt(0)>126||!Array.isArray(rows)||rows.length!==5||!rows.every(r=>typeof r==='string'&&/^[01]{1,8}$/.test(r)&&r.length===rows[0].length))throw new Error('Each character needs five rows of 1–8 pixels.');out[ch]=rows.slice();}return out;}
 function raster(w,seconds,date){
  const spec=specs[w.islandPart],[,bx,by,bw,bh,primary,secondary]=spec,out=new Uint8ClampedArray(w.w*w.h*4),raw=new Uint8ClampedArray(64*64*4);
  const rgb=(r,g,b)=>[r,g,b],white=rgb(221,230,217),muted=rgb(134,165,158);let offset=0;
@@ -18,12 +20,12 @@ function raster(w,seconds,date){
  function dot(x,y,c){y+=offset;if(x<0||y<0||x>=64||y>=64)return;raw.set([...quant(c),255],(y*64+x)*4);}
  function box(x,y,w,h,c){for(let j=0;j<h;j++)for(let i=0;i<w;i++)dot(x+i,y+j,c);}
  function line(x,y,tx,ty,c){const dx=Math.abs(tx-x),sx=x<tx?1:-1,dy=-Math.abs(ty-y),sy=y<ty?1:-1;let error=dx+dy;for(;;){dot(x,y,c);if(x===tx&&y===ty)break;const twice=2*error;if(twice>=dy){error+=dy;x+=sx;}if(twice<=dx){error+=dx;y+=sy;}}}
- function text(s,x,y,c){for(const ch of s){const width=ch==='N'?5:3,bits=glyphs[ch]||0;for(let row=0;row<5;row++)for(let col=0;col<width;col++)if(bits&(1<<(width*5-1-row*width-col)))dot(x+col,y+row,c);x+=width+1;}}
+ function text(s,x,y,c){for(const ch of s){const rows=character(ch,w.glyphs),width=rows[0].length;for(let row=0;row<5;row++)for(let col=0;col<width;col++)if(rows[row][col]==='1')dot(x+col,y+row,c);x+=width+1;}}
  function digit(n,x,y,c){const s=[63,6,91,79,102,109,125,7,127,111][n];for(const [mask,b]of [[1,[1,0,5,2]],[2,[5,1,2,5]],[4,[5,7,2,5]],[8,[1,11,5,2]],[16,[0,7,2,5]],[32,[0,1,2,5]],[64,[1,6,5,2]]])if(s&mask)box(x+b[0],y+b[1],b[2],b[3],c);}
  const part=w.islandPart,phase=seconds*w.speed%3600;
  const surface=(x,t)=>53+Math.sin(x*.085+t*.65)*1.25+Math.sin(x*.14-t*.45)*.75;
  if(part===0){const hour=w.format==='24'?date.getHours():date.getHours()%12||12;if(hour>=10||w.format==='24')digit(Math.floor(hour/10),5,15,white);digit(hour%10,14,15,white);digit(Math.floor(date.getMinutes()/10),27,15,white);digit(date.getMinutes()%10,36,15,white);dot(23,19,muted);dot(23,24,muted);if(w.format!=='24')text(date.getHours()<12?'AM':'PM',47,21,muted);}
- if(part===1){const s=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][date.getMonth()]+' '+date.getDate(),width=[...s].reduce((n,ch)=>n+(ch==='N'?6:4),-1);text(s,Math.trunc((64-width)/2),4,muted);}
+ if(part===1){const s=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][date.getMonth()]+' '+date.getDate(),width=[...s].reduce((n,ch)=>n+character(ch,w.glyphs)[0].length+1,-1);text(s,Math.trunc((64-width)/2),4,muted);}
  offset=8;
  if(part===2)box(0,51,64,13,rgb(5,35,45));
  if(part>=3&&part<=5){const band=part-3,timing=phase*(band===0?.8:band===1?1.1:1)+(2-band)*1.7;for(let x=0;x<64;x++){const y=round(surface(x,timing))-(2-band)*2;for(let d=0;d<2;d++){const strength=Math.trunc((64+band*28)/(d+1));dot(x,y+d,rgb(8,strength,strength+20));}}}
@@ -36,5 +38,5 @@ function raster(w,seconds,date){
  for(let y=0;y<w.h;y++)for(let x=0;x<w.w;x++){let u=(x+.5)/w.w,v=(y+.5)/w.h,old=u;if(w.rotation===90){u=v;v=1-old;}if(w.rotation===180){u=1-u;v=1-v;}if(w.rotation===270){u=1-v;v=old;}if(w.flipX)u=1-u;if(w.flipY)v=1-v;const sx=bx+Math.floor(u*bw),sy=by+Math.floor(v*bh),src=(sy*64+sx)*4,dst=(y*w.w+x)*4;out.set(raw.subarray(src,src+4),dst);for(let c=0;c<2;c++)if(raw[src+3]&&defaults[c].every((v,k)=>raw[src+k]===v)){out.set(replacements[c],dst);break;}}
  return out;
 }
-const api={specs,raster};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.IslandAssets=api;
+const api={specs,raster,character,cleanGlyphs,characters:Object.keys(glyphs).join('')+' '};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.IslandAssets=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

@@ -38,10 +38,10 @@ static bool decode(const uint8_t *data, size_t size, bool install)
         const uint8_t *p = data + offset;
         layer_t layer = {.type=p[0], .x=(int8_t)p[1], .y=(int8_t)p[2], .w=p[3], .h=p[4],
             .frames=p[5], .fps=p[6], .format=p[7], .color=u16(p+8), .secondary=u16(p+10), .colors=u16(p+12), .flags=u16(p+14)};
-        if (layer.type > 26 || layer.x < -63 || layer.y < -63 || !layer.w || layer.w > 64 ||
+        if (layer.type > 27 || layer.x < -63 || layer.y < -63 || !layer.w || layer.w > 64 ||
             !layer.h || layer.h > 64 || !layer.frames || layer.frames > 32 || !layer.fps ||
-            layer.fps > 30 || layer.colors > 255 || (layer.format != 12 && layer.format != 24) || (layer.type>=22?layer.flags!=0:layer.type==17?(layer.flags!=WEATHER_PAYLOAD_BYTES&&layer.flags!=WEATHER_SKY_PAYLOAD_BYTES):layer.type>=18?layer.flags!=WEATHER_PAYLOAD_BYTES:layer.type>=5?layer.flags>15:layer.flags!=0)) return false;
-        size_t length = layer.type>=17 && layer.type<=21 ? layer.flags : layer.type ? 0 : (size_t)layer.w * layer.h * layer.frames;
+            layer.fps > 30 || layer.colors > 255 || (layer.format != 12 && layer.format != 24) || (layer.type==27?(layer.flags<9||layer.flags>450||(layer.flags-2)%7):layer.type>=22?layer.flags!=0:layer.type==17?(layer.flags!=WEATHER_PAYLOAD_BYTES&&layer.flags!=WEATHER_SKY_PAYLOAD_BYTES):layer.type>=18?layer.flags!=WEATHER_PAYLOAD_BYTES:layer.type>=5?layer.flags>15:layer.flags!=0)) return false;
+        size_t length = (layer.type>=17 && layer.type<=21)||layer.type==27 ? layer.flags : layer.type ? 0 : (size_t)layer.w * layer.h * layer.frames;
         if (layer.type && (layer.frames != 1 || layer.colors)) return false;
         size_t bytes = layer.colors * 2 + length;
         offset += 16;
@@ -49,6 +49,7 @@ static bool decode(const uint8_t *data, size_t size, bool install)
         layer.palette = data + offset;
         layer.pixels = layer.palette + layer.colors * 2;
         if(layer.type>=17&&layer.type<=21&&!weather_layer_valid(layer.pixels,layer.flags))return false;
+        if(layer.type==27){const uint8_t *g=layer.pixels;if(g[0]!=1||!g[1]||g[1]>64||length!=2+7U*g[1])return false;for(unsigned j=0;j<g[1];j++){const uint8_t *c=g+2+j*7;if(c[0]<32||c[0]>126||c[1]<1||c[1]>8)return false;for(unsigned k=0;k<j;k++)if(g[2+k*7]==c[0])return false;for(int y=0;y<5;y++)if(c[2+y]>=(1U<<c[1]))return false;}}
         for (size_t k = 0; layer.type==0 && k < length; k++) if (layer.pixels[k] > layer.colors) return false;
         offset += bytes;
         if (install) layers[i] = layer;
@@ -133,6 +134,14 @@ void scene_player_render(uint16_t *pixels, const struct tm *time, bool valid, in
     uint64_t elapsed=now_ms>started?(uint64_t)(now_ms-started):0;
     for(unsigned i=0;i<count;i++){
         const layer_t *l=&layers[i];unsigned frame=l->type?0:(elapsed*l->fps/1000)%l->frames;
+        if(l->type==27){
+            if(!valid)continue;
+            if(!island_pixels)island_pixels=heap_caps_calloc(4096,sizeof(*island_pixels),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+            if(!island_pixels)continue;
+            island_date_font_render(island_pixels,time,l->pixels);
+            for(unsigned y=0;y<l->h;y++)for(unsigned x=0;x<l->w;x++){int tx=l->x+(int)x,ty=l->y+(int)y;unsigned sx=(2*x+1)*64/(2*l->w),sy=(2*y+1)*5/(2*l->h);if((unsigned)tx<64&&(unsigned)ty<64&&island_pixels[sy*64+sx])pixels[ty*64+tx]=l->color;}
+            continue;
+        }
         if(l->type>=22){
             if(!valid)continue;
             if(!island_pixels)island_pixels=heap_caps_calloc(4096,sizeof(*island_pixels),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);

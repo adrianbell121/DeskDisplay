@@ -21,7 +21,7 @@ def pack(root,destination):
             raw=raw.replace('</head>','<style>'+css+'</style></head>')
             core=['engine.js','widget-data.js','animation.js','scene-weather.js','minute-birds.js','island-assets.js','scene.js','studio-state.js']
             scripts=''.join('<script>'+(root/n).read_text(encoding='utf-8').replace('</script','<\\/script')+'</script>' for n in core)
-            boots=','.join('function(){'+(root/n).read_text(encoding='utf-8').replace('</script','<\\/script')+'}' for n in ['app.js','designer.js','weather-panel.js'])
+            boots=','.join('function(){'+(root/n).read_text(encoding='utf-8').replace('</script','<\\/script')+'}' for n in ['app.js','designer.js','weather-panel.js','widget-editor.js'])
             scripts+='<script>window.BoardEditorBoot=['+boots+'];</script><script>'+(root/'board-workspace.js').read_text(encoding='utf-8')+'</script>'
             raw=raw.replace('</body>',scripts+'</body>')
         data=gzip.compress(raw.encode('utf-8'),mtime=0)

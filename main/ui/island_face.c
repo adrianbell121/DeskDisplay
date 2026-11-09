@@ -249,3 +249,12 @@ void island_face_render(uint16_t *pixels, const struct tm *time, bool valid, int
         for(unsigned i=0;i<4096;i++)if(layer[i])pixels[i]=layer[i];
     }
 }
+
+static const uint8_t *custom_character(const uint8_t *font,char ch){for(unsigned i=0;i<font[1];i++)if(font[2+i*7]==(uint8_t)ch)return font+2+i*7;return NULL;}
+void island_date_font_render(uint16_t *pixels,const struct tm *time,const uint8_t *font){
+ static const char *months[]={"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};char date[12];snprintf(date,sizeof(date),"%s %d",months[time->tm_mon],time->tm_mday);
+ memset(pixels,0,4096*sizeof(*pixels));int width=-1;
+ for(const char *s=date;*s;s++){const uint8_t *c=custom_character(font,*s);width+=(c?c[1]:*s=='N'?5:3)+1;}
+ int x=(64-width)/2;
+ for(const char *s=date;*s;s++){const uint8_t *c=custom_character(font,*s);int w=c?c[1]:*s=='N'?5:3;unsigned bits=glyph(*s);for(int y=0;y<5;y++)for(int col=0;col<w;col++){bool on=c?(c[2+y]&(1U<<(w-1-col))):(bits&(1U<<(w*5-1-y*w-col)));if(on&&x+col>=0&&x+col<64)pixels[y*64+x+col]=0xffff;}x+=w+1;}
+}

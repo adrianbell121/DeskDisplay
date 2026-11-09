@@ -10,3 +10,5 @@ int island_bird_next_ms(int64_t now_us);
 
 extern const int island_element_bounds[12][4];
 void island_element_render(uint16_t *pixels, unsigned part, const struct tm *time, bool valid, int64_t now_us);
+
+void island_date_font_render(uint16_t *pixels,const struct tm *time,const uint8_t *font);

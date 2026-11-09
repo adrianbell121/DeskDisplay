@@ -2,6 +2,19 @@ const {test}=require('node:test'),assert=require('node:assert/strict');
 const S=require('./scene.js'),Store=require('./studio-state.js');
 const date=new Date(2026,9,28,18,2,42);
 
+test('custom date characters update every matching date and keep live date protocol',()=>{
+ const I=require('./island-assets.js'),fs=require('node:fs');
+ const original=S.boardIsland(),face=S.clone(original),w=face.widgets[1];
+ w.glyphs={N:['11111','10001','10101','10001','11111']};
+ assert.deepEqual(S.cleanScene(JSON.parse(JSON.stringify(face))),face);
+ for(let d=1;d<=30;d++)assert.notDeepEqual(S.raster(w,0,new Date(2026,10,d,12)),S.raster(original.widgets[1],0,new Date(2026,10,d,12)));
+ assert.deepEqual(S.raster(w,0,new Date(2026,9,6,12)),S.raster(original.widgets[1],0,new Date(2026,9,6,12)));
+ const binary=S.compile(face),offset=8+16;assert.equal(binary[offset],27);assert.equal(binary[offset+14],9);assert.deepEqual([...binary.slice(offset+16,offset+25)],[1,1,78,5,31,17,21,17,31]);
+ fs.mkdirSync('artifacts/widget-editor-tests',{recursive:true});fs.writeFileSync('artifacts/widget-editor-tests/date-font.fls',binary);
+ for(const bad of [{N:['1']},{NN:['111','111','111','111','111']},{N:['111','11','111','111','111']},{N:['111111111','1','1','1','1']},{N:['abc','abc','abc','abc','abc']}])assert.throws(()=>I.cleanGlyphs(bad));
+ const all={};for(let code=32;code<97;code++)all[String.fromCharCode(code)]=['1','1','1','1','1'];assert.throws(()=>I.cleanGlyphs(all));
+});
+
 test('November date has a five-column diagonal N and stays centered',()=>{
  const w=S.boardIsland().widgets[1],image=S.raster(w,0,new Date(2026,10,6,12));
  const rows=Array.from({length:5},(_,y)=>Array.from({length:5},(_,x)=>image[(y*64+21+x)*4+3]?'1':'0').join(''));

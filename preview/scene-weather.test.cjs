@@ -17,3 +17,12 @@ test('lightning is thin and brief, with randomized intervals inside the configur
  const w=widget('weatherLightning','storm');assert.equal(visible(S.raster(w,1,date)),false);assert.equal(visible(S.raster(w,starts[0],date)),true);assert.equal(visible(S.raster(w,starts[0]+.5,date)),false);
 });
 test('weather parameters clamp invalid inputs and ensure a valid lightning range',()=>{const c=W.clean({rainDensity:999,snowSpeed:NaN,lightningMin:120,lightningMax:20});assert.equal(c.rainDensity,100);assert.equal(c.snowSpeed,W.defaults.snowSpeed);assert.equal(c.lightningMax,120);});
+
+test('weather widget overrides persist and affect only that layer in preview and board payload',()=>{
+ const base={condition:'rainy',location:'Bedford, MA, 01730',rainSpeed:19,rainLength:2};
+ const one=widget('weatherRain','rainy'),two=S.clone(one);two.id=S.uid();two.weatherOverrides={rainSpeed:35,rainLength:5,rainSlant:-8};
+ const scene=S.cleanScene({weather:base,widgets:[one,two]});assert.deepEqual(S.cleanScene(JSON.parse(JSON.stringify(scene))),scene);
+ const bytes=S.compile(scene),v=new DataView(bytes.buffer);assert.equal(v.getFloat32(8+24,true),19);assert.equal(v.getFloat32(8+92+24,true),35);assert.equal(v.getFloat32(8+92+28,true),5);assert.equal(v.getFloat32(8+92+32,true),-8);
+ const before=S.render({...scene,widgets:[one]},1,date),after=S.render({...scene,widgets:[two]},1,date);assert.notDeepEqual(before,after);assert.equal(scene.weather.rainSpeed,19);
+ two.weatherOverrides={sunRays:false};two.type='weatherSun';assert.equal(S.cleanWidget(two).weatherOverrides.sunRays,false);
+});

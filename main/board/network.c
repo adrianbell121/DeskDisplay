@@ -120,6 +120,8 @@ esp_err_t board_network_init(void)
     if((err=esp_event_loop_create_default())!=ESP_OK)return err;
     if(!esp_netif_create_default_wifi_sta())return ESP_FAIL;
     wifi_init_config_t cfg=WIFI_INIT_CONFIG_DEFAULT();
+    // Bound radio buffering so page transfers cannot consume the display's DMA pool.
+    cfg.static_rx_buf_num=6;cfg.dynamic_rx_buf_num=16;cfg.dynamic_tx_buf_num=6;
     if((err=esp_wifi_init(&cfg))!=ESP_OK)return err;
     // Our single NVS blob stores credentials; avoid a second driver-managed copy.
     if((err=esp_wifi_set_storage(WIFI_STORAGE_RAM))!=ESP_OK)return err;
