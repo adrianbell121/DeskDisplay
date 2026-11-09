@@ -7,8 +7,9 @@
   const I=typeof module!=='undefined'&&module.exports?require('./island-assets.js'):root.IslandAssets;
   const W=typeof module!=='undefined'&&module.exports?require('./scene-weather.js'):root.SceneWeather;
   const B=typeof module!=='undefined'&&module.exports?require('./minute-birds.js'):root.MinuteBirds;
+  const C=typeof module!=='undefined'&&module.exports?require('./cellular-automata.js'):root.CellularAutomata;
   const clone=value=>JSON.parse(JSON.stringify(value));
-  const types=['clock','date','seconds','text','box','ellipse','wave','boat','palm','bird','orbit','rain','mountains','moon','flower','fireflies','sprite','weather','forecast','calendar','island','minuteBird',...W.kinds];
+  const types=['clock','date','seconds','text','box','ellipse','wave','boat','palm','bird','orbit','rain','mountains','moon','flower','fireflies','sprite','weather','forecast','calendar','island','minuteBird','cellularAutomata',...W.kinds];
   const effects=['none','bob','sway','drift','blink','orbit'];
   const palette=['#000000','#edf1da','#b7cfbd','#44c6cb','#126976','#407c59','#a79161','#79583b','#e6b05a','#d4a3d9','#89a7ef','#ef7167','#293c53','#ffffff','#94e780'];
   const num=(n,min,max,fallback)=>typeof n==='number'&&Number.isFinite(n)?Math.max(min,Math.min(max,n)):fallback;
@@ -35,6 +36,7 @@
   }
   function make(type,name,x,y,w,h,extra={}){return cleanWidget({type,name,x,y,w,h,...extra});}
   const templates=[
+    make('cellularAutomata','Cellular automata',0,0,64,64,{color:'#94e780'}),
     make('clock','Live clock',5,15,54,14),make('date','Live date',17,4,31,5,{color:'#86a59e'}),make('seconds','Seconds track',3,62,58,1,{color:'#44c6cb'}),make('text','Text label',16,10,31,5,{text:'HELLO'}),
     make('wave','Water ribbon',0,49,64,12,{color:'#44c6cb'}),make('boat','Sailboat',41,39,15,17,{color:'#e5e9da',secondary:'#9d6f45'}),make('palm','Palm tree',5,32,22,21,{color:'#42805b',secondary:'#937748'}),make('bird','Flying bird',18,33,9,7,{color:'#9bb9b1'}),
     make('box','Rectangle',8,51,25,3,{color:'#ad9966'}),make('ellipse','Oval',14,45,28,10,{color:'#ad9966'}),make('orbit','Solar orbit',3,33,58,28,{color:'#f4b76a'}),make('rain','Rain & ripples',3,33,58,28,{color:'#8caaf7'}),make('mountains','Mountain range',0,33,64,29,{color:'#8ccca9'}),make('moon','Crescent moon',44,32,9,9),make('flower','Flower',7,42,9,20,{color:'#d3acdc',secondary:'#3a6b45'}),make('fireflies','Fireflies',3,32,58,27,{color:'#d7ee93'}),
@@ -50,6 +52,7 @@
   function rgb565(col){return ((Math.max(0,Math.min(255,col[0]))>>3)<<11)|((Math.max(0,Math.min(255,col[1]))>>2)<<5)|(Math.max(0,Math.min(255,col[2]))>>3);}
   function expanded(n){return [Math.round((n>>11)*255/31),Math.round(((n>>5)&63)*255/63),Math.round((n&31)*255/31)];}
   function raster(w,seconds,date){
+    if(w.type==='cellularAutomata')return C.raster(w,seconds,date);
     if(w.type==='minuteBird')return B.raster(w,date);
     if(W.kinds.includes(w.type))return W.raster(w,seconds,date);
     if(w.type==='island')return I.raster(w,seconds,date);
@@ -130,6 +133,10 @@
     // Header: FLS2, layer count u16, background u16. Each layer has 16-byte header.
     const chunks=[],header=new Uint8Array(8),hv=new DataView(header.buffer);header.set([70,76,83,50]);const widgets=scene.widgets.filter(w=>w.visible);hv.setUint16(4,widgets.length,true);hv.setUint16(6,rgb565(rgba(scene.background)),true);chunks.push(header);
     for(const w of widgets){
+      if(w.type==='cellularAutomata'){
+        if(w.speed!==1||w.effect!=='none'||w.rotation||w.flipX||w.flipY||w.animation?.keys.length)throw new Error('Cellular automata runs live at the configured update speed; keep speed 1 and extra transforms off.');
+        const b=new Uint8Array(16),v=new DataView(b.buffer);b[0]=28;v.setInt8(1,w.x);v.setInt8(2,w.y);b[3]=w.w;b[4]=w.h;b[5]=b[6]=1;b[7]=12;v.setUint16(8,rgb565(rgba(w.color)),true);chunks.push(b);continue;
+      }
       if(w.type==='island'&&w.islandPart===1&&Object.keys(w.glyphs||{}).length){
         if(w.effect!=='none'||w.rotation||w.flipX||w.flipY||w.speed!==1||w.animation?.keys.length)throw new Error('Live character designs support position, size and colors; remove extra transforms.');
         const glyphs=I.cleanGlyphs(w.glyphs),entries=Object.entries(glyphs),length=2+entries.length*7,b=new Uint8Array(16+length),v=new DataView(b.buffer);b[0]=27;v.setInt8(1,w.x);v.setInt8(2,w.y);b[3]=w.w;b[4]=w.h;b[5]=b[6]=1;b[7]=12;v.setUint16(8,rgb565(rgba(w.color)),true);v.setUint16(14,length,true);b[16]=1;b[17]=entries.length;entries.forEach(([ch,rows],i)=>{const p=18+i*7;b[p]=ch.charCodeAt(0);b[p+1]=rows[0].length;rows.forEach((r,y)=>b[p+2+y]=parseInt(r,2));});chunks.push(b);continue;
@@ -161,5 +168,6 @@
     const length=chunks.reduce((n,c)=>n+c.length,0);if(length>262144)throw new Error('Scene exceeds the 256 KB board limit. Reduce widget sizes or animation frames.');const result=new Uint8Array(length);let offset=0;for(const c of chunks){result.set(c,offset);offset+=c.length;}return result;
   }
   function boardIsland(){return cleanScene({id:'island-board-v1',name:'Island — board layout',background:'#000000',notes:'Original board spacing. Twelve independent elements. Birds use a repeatable preview pause and random 20–30 second pauses on the board.',widgets:clone(islandWidgets)});}
-  const api={boardIsland,clone,types,effects,palette,templates,uid,cleanWidget,cleanScene,fromLegacy,nativeSize,raster,render,compile,rgb565};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FaceScene=api;
+  function cellularAutomata(){return cleanScene({id:'cellular-automata-v1',name:'Cellular automata',background:'#000000',notes:'Clock-seeded Life: five-second time holds, quarter-hour clears, and fading aged cells. Timing and colors are in cellular-automata-config.json.',widgets:[{...clone(templates.find(w=>w.type==='cellularAutomata')),id:'cellular-automata-grid'}]});}
+  const api={boardIsland,cellularAutomata,clone,types,effects,palette,templates,uid,cleanWidget,cleanScene,fromLegacy,nativeSize,raster,render,compile,rgb565};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.FaceScene=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

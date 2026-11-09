@@ -7,6 +7,7 @@ async function get(){const r=await fetch('/api/workspace');if(!r.ok)throw new Er
 async function post(path,body){return fetch(path,{method:'POST',headers:{'Content-Type':'application/json','X-Face-Lab':'1'},body:JSON.stringify(body)});}
 async function flush(){if(running||blocked||!pending)return;running=true;const next=pending;pending=null;try{const r=await post('/api/workspace',{state:next,revision});const result=await r.json();if(!r.ok){if(r.status===409)blocked=true;throw new Error(result.error||'Shared save failed');}revision=result.revision;state=next;status('Saved to shared library');}catch(e){if(!pending)pending=next;status(e.message+' Browser recovery copy kept.');}finally{running=false;if(pending&&!blocked)timer=setTimeout(flush,2000);}}
 try{
+ const config=await fetch('cellular-automata-config.json');if(!config.ok)throw new Error('Could not load cellular automata settings');window.CellularAutomata.configure(await config.json());
  const shared=await get();revision=shared.revision;state=shared.state;
  let local=null;try{const raw=localStorage.getItem(key);if(raw)local=Store.clean(JSON.parse(raw));}catch{}
  if(local&&state&&JSON.stringify(local)!==JSON.stringify(state)){const r=await post('/api/workspace/recovery',{state:local});if(!r.ok)throw new Error('Could not back up this browser’s existing designs. Reload to retry.');}

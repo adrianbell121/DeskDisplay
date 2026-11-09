@@ -39,6 +39,33 @@ It does not open, enumerate, probe, or flash a board on startup.
 
 ## Library page
 
+**Cellular automata** starts with centered Island-style time and holds the grid
+for five seconds each minute before applying Life rules. It clears immediately
+before the time stamp at :00, :15, :30 and :45. Other minutes replace only the
+clock rectangle. A continuously lit cell stays bright for 30 seconds, fades over
+the next 120 seconds, then is removed from the simulation. A cell that dies and
+is born again starts a new age; stamped time pixels also start fresh.
+
+Edit `preview/cellular-automata-config.json` for all shared settings:
+
+| Setting | Meaning |
+| --- | --- |
+| `update_ms` | Milliseconds per generation (250 by default) |
+| `time_hold_seconds` | Freeze the clock/grid before evolution (5) |
+| `clear_every_minutes` | Clear at matching minute boundaries (15; must divide 60) |
+| `fade_after_seconds` | Continuous life before fading starts (30) |
+| `fade_duration_seconds` | Fade duration before removing a cell (120) |
+| `color` | Solid color, or gradient start color, as `#RRGGBB` |
+| `gradient` | `none`, `horizontal`, `vertical`, or `both` |
+| `gradient_end_color` | Gradient end color, as `#RRGGBB` |
+
+Horizontal goes left to right; vertical goes top to bottom. Both averages the two
+positions, giving a diagonal gradient from top-left to bottom-right. Age dims the
+resulting color. These shared colors override the cellular widget's color picker.
+Reload local Studio after editing this file; rebuild/flash to update the board.
+Use Computer time or Tick clock to preview minute changes. Board simulation stays
+live rather than using a baked sprite. Keep speed 1 and extra transforms off.
+
 Browse **Clock faces**, **Widgets**, or **Animations**, with search and sorting.
 Open faces, create variations, place widgets, edit saved sprite pixels, export,
 or delete with Undo available. Editing a library animation updates that saved

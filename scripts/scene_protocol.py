@@ -16,17 +16,19 @@ def validate_scene(data):
     weather=False
     solar=False
     date_glyphs=False
+    automata=False
     offset = 8
     for _ in range(count):
         if len(data) - offset < 16:
             raise ValueError("Truncated layer header")
         kind, x, y, w, h, frames, fps, fmt, color, secondary, colors, reserved = struct.unpack_from("<BbbBBBBBHHHH", data, offset)
-        if (kind > 27 or not -63 <= x <= 63 or not -63 <= y <= 63 or not 1 <= w <= 64
+        if (kind > 28 or not -63 <= x <= 63 or not -63 <= y <= 63 or not 1 <= w <= 64
                 or not 1 <= h <= 64 or not 1 <= frames <= 32 or not 1 <= fps <= 30
                 or fmt not in (12, 24) or colors > 255 or (not (9<=reserved<=450 and (reserved-2)%7==0) if kind==27 else reserved!=0 if kind>=22 else reserved not in (76,84) if kind==17 else reserved != 76 if 18<=kind<=21 else reserved>15 if kind>=5 else reserved!=0)
                 or (kind and (frames != 1 or colors))):
             raise ValueError("Invalid layer dimensions or metadata")
         birds=birds or 22<=kind<=26
+        automata=automata or kind==28
         weather=weather or 17<=kind<=21
         offset += 16
         length = reserved if 17<=kind<=21 or kind==27 else 0 if kind else w * h * frames
@@ -59,7 +61,7 @@ def validate_scene(data):
         offset = end
     if offset != len(data):
         raise ValueError("Unexpected trailing scene bytes")
-    return {"layers": count, "background": background, "bytes": len(data),"weather":weather,"minuteBirds":birds,"solar":solar,"dateGlyphs":date_glyphs}
+    return {"layers": count, "background": background, "bytes": len(data),"weather":weather,"minuteBirds":birds,"solar":solar,"dateGlyphs":date_glyphs,"cellularAutomata":automata}
 
 
 def deploy_scene(link, data, request, progress=None):
@@ -76,6 +78,8 @@ def deploy_scene(link, data, request, progress=None):
         raise RuntimeError('Install the sun/moon firmware once before uploading this face.')
     if info['dateGlyphs'] and 'date_glyphs=1' not in status:
         raise RuntimeError('Install the editable-date firmware once before uploading custom date characters.')
+    if info['cellularAutomata'] and 'cellular_automata=1' not in status:
+        raise RuntimeError('Install the cellular-automata firmware once before uploading this face.')
 
     def acknowledged(command, prefix, timeout=4):
         reply = request(link, command, "SCENE ", timeout=timeout)

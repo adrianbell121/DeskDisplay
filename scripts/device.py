@@ -13,7 +13,7 @@ import serial
 from serial.tools import list_ports
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-FACES = ("clock", "island")
+FACES = ("clock", "island", "automata")
 
 
 def connect(port):
@@ -150,7 +150,7 @@ def main():
             frame = lambda text: int(re.search(r"frames=(\d+)", text)[1])
             assert frame(final) > frame(first) + 30, "Display stopped rendering"
             assert "audio=ESP_OK" in final, final
-            print("PASS: two clock faces, command bounds, framebuffer progress, audio initialization")
+            print("PASS: clock, Island and automata faces, command bounds, framebuffer progress, audio initialization")
         else:
             command = args.command
             if args.command in ["mode", "brightness"]:

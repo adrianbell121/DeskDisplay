@@ -7,6 +7,7 @@
 #include "weather_layer.h"
 #include "weather.h"
 #include "minute_birds.h"
+#include "cellular_automata.h"
 #include "esp_heap_caps.h"
 #include <stdlib.h>
 
@@ -22,6 +23,7 @@ static uint16_t background;
 static bool ready;
 static int64_t started;
 static uint16_t *island_pixels;
+static cellular_automata_t *automata[32];
 static uint16_t native[54 * 14];
 static uint8_t opaque[54 * 14];
 static unsigned native_w, native_h;
@@ -38,7 +40,7 @@ static bool decode(const uint8_t *data, size_t size, bool install)
         const uint8_t *p = data + offset;
         layer_t layer = {.type=p[0], .x=(int8_t)p[1], .y=(int8_t)p[2], .w=p[3], .h=p[4],
             .frames=p[5], .fps=p[6], .format=p[7], .color=u16(p+8), .secondary=u16(p+10), .colors=u16(p+12), .flags=u16(p+14)};
-        if (layer.type > 27 || layer.x < -63 || layer.y < -63 || !layer.w || layer.w > 64 ||
+        if (layer.type > 28 || layer.x < -63 || layer.y < -63 || !layer.w || layer.w > 64 ||
             !layer.h || layer.h > 64 || !layer.frames || layer.frames > 32 || !layer.fps ||
             layer.fps > 30 || layer.colors > 255 || (layer.format != 12 && layer.format != 24) || (layer.type==27?(layer.flags<9||layer.flags>450||(layer.flags-2)%7):layer.type>=22?layer.flags!=0:layer.type==17?(layer.flags!=WEATHER_PAYLOAD_BYTES&&layer.flags!=WEATHER_SKY_PAYLOAD_BYTES):layer.type>=18?layer.flags!=WEATHER_PAYLOAD_BYTES:layer.type>=5?layer.flags>15:layer.flags!=0)) return false;
         size_t length = (layer.type>=17 && layer.type<=21)||layer.type==27 ? layer.flags : layer.type ? 0 : (size_t)layer.w * layer.h * layer.frames;
@@ -59,9 +61,14 @@ static bool decode(const uint8_t *data, size_t size, bool install)
     return true;
 }
 bool scene_player_validate(const uint8_t *data, size_t size) { return decode(data, size, false); }
+void scene_player_reset_automata(void)
+{
+    for(unsigned i=0;i<32;i++){free(automata[i]);automata[i]=NULL;}
+}
 bool scene_player_set(const uint8_t *data, size_t size, int64_t now_ms)
 {
     if (!scene_player_validate(data,size)) return false;
+    scene_player_reset_automata();
     decode(data,size,true); started=now_ms; ready=true;
     bool configured=false;
     bool active=false;float lat=0,lon=0;
@@ -134,6 +141,10 @@ void scene_player_render(uint16_t *pixels, const struct tm *time, bool valid, in
     uint64_t elapsed=now_ms>started?(uint64_t)(now_ms-started):0;
     for(unsigned i=0;i<count;i++){
         const layer_t *l=&layers[i];unsigned frame=l->type?0:(elapsed*l->fps/1000)%l->frames;
+        if(l->type==28){
+            cellular_automata_render(&automata[i],pixels,l->x,l->y,l->w,l->h,l->color,time,valid,now_ms);
+            continue;
+        }
         if(l->type==27){
             if(!valid)continue;
             if(!island_pixels)island_pixels=heap_caps_calloc(4096,sizeof(*island_pixels),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);

@@ -1,6 +1,6 @@
 if(NOT CMAKE_BUILD_EARLY_EXPANSION)
 file(GLOB dashboard_sources CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/../preview/*.js" "${CMAKE_CURRENT_SOURCE_DIR}/../preview/*.css" "${CMAKE_CURRENT_SOURCE_DIR}/../preview/index.html")
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${dashboard_sources} "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/pack_dashboard.py")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${dashboard_sources} "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/pack_dashboard.py" "${CMAKE_CURRENT_SOURCE_DIR}/../preview/cellular-automata-config.json")
 idf_build_get_property(dashboard_python PYTHON)
 execute_process(COMMAND "${dashboard_python}" "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/pack_dashboard.py" "${CMAKE_CURRENT_SOURCE_DIR}/../preview" "${CMAKE_CURRENT_BINARY_DIR}/dashboard_assets.h" COMMAND_ERROR_IS_FATAL ANY)
 endif()
@@ -15,6 +15,7 @@ idf_component_register(
         "board/dashboard.c"
         "ui/weather_layer.c"
         "ui/desk_ui.c"
+        "ui/cellular_automata.c"
         "ui/island_face.c"
         "ui/minute_birds.c"
         "ui/scene_player.c"

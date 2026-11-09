@@ -1,8 +1,15 @@
-import gzip,re,tempfile,unittest
+import gzip,re,tempfile,unittest,json
 from pathlib import Path
-from pack_dashboard import pack
+from pack_dashboard import pack,automata_config
 
 class DashboardBundleTests(unittest.TestCase):
+ def test_automata_settings_reject_bad_timings_and_colors(self):
+  config=json.loads((Path(__file__).resolve().parent.parent/'preview/cellular-automata-config.json').read_text())
+  with tempfile.TemporaryDirectory() as folder:
+   root=Path(folder)
+   for change in [{'update_ms':0},{'time_hold_seconds':60},{'clear_every_minutes':7},{'fade_duration_seconds':0},{'color':'green'},{'gradient':'diagonal'}]:
+    (root/'cellular-automata-config.json').write_text(json.dumps({**config,**change}))
+    with self.assertRaises(ValueError):automata_config(root)
  def test_board_page_has_all_dependencies_and_no_computer_actions(self):
   root=Path(__file__).resolve().parent.parent/'preview'
   with tempfile.TemporaryDirectory() as folder:
@@ -12,6 +19,7 @@ class DashboardBundleTests(unittest.TestCase):
    page=assets['index.html']
    self.assertNotIn('id="ai-open"',page);self.assertNotIn('id="ai-dialog"',page);self.assertNotIn('id="deploy-open"',page)
    self.assertIn('window.BoardEditorBoot=',page);self.assertIn('id="export"',page);self.assertIn('id="widget-import"',page)
+   self.assertIn('root.CellularAutomata=api',page)
    self.assertNotRegex(page,r'<script[^>]+src=');self.assertNotIn('rel="stylesheet"',page)
    for dependency in re.findall(r'(?:src|href)="([^"?]+\.(?:js|css))"',page):self.assertIn(dependency,assets)
    self.assertNotIn('wifi.local.json',source);self.assertNotIn('workspace.json',source)

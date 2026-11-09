@@ -1,19 +1,22 @@
 #include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <sys/time.h>
 #include "board.h"
 #include "island_face.h"
 #include "scene_player.h"
+#include "cellular_automata.h"
 #include "desk_ui.h"
 #include "esp_timer.h"
 #include "lvgl.h"
 
-enum { CLOCK, ISLAND, CUSTOM, FACE_COUNT, TEST = FACE_COUNT };
-static const char *names[] = {"clock", "island", "custom", "test"};
+enum { CLOCK, ISLAND, CUSTOM, AUTOMATA, FACE_COUNT, TEST = FACE_COUNT };
+static const char *names[] = {"clock", "island", "custom", "automata", "test"};
 static int mode = ISLAND;
+static cellular_automata_t *automata;
 static int64_t test_until;
 static uint16_t pixels[64 * 64] __attribute__((aligned(4)));
 static lv_obj_t *canvas, *heading, *detail, *footer;
@@ -87,6 +90,7 @@ static void render(lv_timer_t *timer)
     if (mode == CLOCK) clock_face(&t, valid, phase);
     if (mode == ISLAND) island_face_render(pixels, &t, valid, now_us);
     if (mode == CUSTOM) scene_player_render(pixels, &t, valid, now_us / 1000,(int64_t)frame_time.tv_sec*1000000+frame_time.tv_usec);
+    if (mode == AUTOMATA) cellular_automata_render(&automata,pixels,0,0,64,64,rgb(148,231,128),&t,valid,now_us/1000);
     if (mode == TEST) {
         static const uint16_t colors[] = {0xf800, 0x07e0, 0x001f, 0x8410};
         unsigned stage = (now_us / 1000000) % 4;
@@ -128,13 +132,19 @@ esp_err_t desk_ui_init(void)
 }
 bool desk_ui_mode(const char *name)
 {
+    if(!strcmp(name,"next")){desk_ui_next();return true;}
     for (int i = CLOCK; i < FACE_COUNT; i++) if (strcmp(name, names[i]) == 0) {
         if (i == CUSTOM && !scene_player_ready()) return false;
+        if (i == CUSTOM) scene_player_reset_automata();
+        if (i == AUTOMATA) {free(automata);automata=NULL;}
         mode = i; last_second = -1; return true;
     }
     return false;
 }
-void desk_ui_next(void) { mode = (mode + 1) % (scene_player_ready() ? FACE_COUNT : 2); last_second = -1; }
+void desk_ui_next(void)
+{
+    desk_ui_mode(mode==AUTOMATA?(scene_player_ready()?"custom":"island"):"automata");
+}
 void desk_ui_custom_changed(void) { mode = CUSTOM; last_second = -1; }
 const char *desk_ui_mode_name(void) { return names[mode]; }
 void desk_ui_test(void) { mode = TEST; test_until = esp_timer_get_time() + 8000000; last_second = -1; }

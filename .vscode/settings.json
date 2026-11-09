@@ -11,5 +11,13 @@
     "sdkconfig.old": true,
     "**/__pycache__": true
   },
-  "search.exclude": {".tools": true, "build": true, "managed_components": true, "artifacts": true}
+  "search.exclude": {
+    ".tools": true,
+    "build": true,
+    "managed_components": true,
+    "artifacts": true
+  },
+  "idf.currentSetup": "C:\\esp\\v6.1\\esp-idf",
+  "idf.flashType": "UART",
+  "idf.port": "COM4"
 }

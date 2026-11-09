@@ -18,7 +18,7 @@ class FakeBoard:
     def request(self, link, command, marker=None, timeout=4):
         self.commands.append(command)
         if command=='status':
-            return 'STATUS scene_version=1\n' if self.failure=='old' else 'STATUS scene_version=2\n'
+            return 'STATUS scene_version=1\n' if self.failure=='old' else 'STATUS scene_version=2 cellular_automata=1\n'
         if command.startswith('scene begin '):
             _,_,size,crc=command.split()
             self.size=int(size)
@@ -43,6 +43,16 @@ class FakeBoard:
 
 
 class SceneTests(unittest.TestCase):
+    def test_cellular_automata_metadata_and_firmware_capability(self):
+        data=b'FLS2'+struct.pack('<HH',1,0)+struct.pack('<BbbBBBBBHHHH',28,0,0,64,64,1,1,12,0x97F0,0,0,0)
+        self.assertTrue(validate_scene(data)['cellularAutomata'])
+        with self.assertRaisesRegex(RuntimeError,'cellular-automata'):
+            deploy_scene(None,data,lambda *args,**kwargs:'STATUS scene_version=2\n')
+        for index,value in [(8,29),(13,2),(20,1),(22,1)]:
+            bad=bytearray(data);bad[index]=value
+            with self.assertRaises(ValueError):validate_scene(bad)
+        board=FakeBoard();deploy_scene(None,data,board.request);self.assertTrue(board.committed)
+
     def test_custom_date_font_and_malformed_characters(self):
         data=(ROOT/'artifacts/widget-editor-tests/date-font.fls').read_bytes()
         self.assertTrue(validate_scene(data)['dateGlyphs'])
@@ -56,11 +66,11 @@ class SceneTests(unittest.TestCase):
 
     def test_cross_language_fixtures_and_transfer(self):
         fixtures=list((ROOT/'artifacts/studio-tests').glob('*.fls'))
-        self.assertEqual(len(fixtures),7,'Run node --test preview/scene.test.cjs first')
+        self.assertEqual(len(fixtures),8,'Run node --test preview/scene.test.cjs first')
         for fixture in fixtures:
             data=fixture.read_bytes()
             info=validate_scene(data)
-            self.assertGreater(info['layers'],1)
+            self.assertGreaterEqual(info['layers'],1)
             board=FakeBoard()
             result=deploy_scene(None,data,board.request)
             self.assertTrue(board.committed)

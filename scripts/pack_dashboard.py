@@ -1,8 +1,24 @@
 """Bundle only public editor assets into the firmware; never include user data."""
-import gzip,re,sys
+import gzip,re,sys,json
 from pathlib import Path
 
+def automata_config(root):
+    c=json.loads((root/'cellular-automata-config.json').read_text(encoding='utf-8'))
+    for key,low,high in [('update_ms',1,60000),('time_hold_seconds',0,59),('clear_every_minutes',1,60),('fade_after_seconds',0,86400),('fade_duration_seconds',1,86400)]:
+        if type(c.get(key)) is not int or not low<=c[key]<=high:raise ValueError('Invalid cellular automata setting: '+key)
+    if 60%c['clear_every_minutes']:raise ValueError('clear_every_minutes must divide 60')
+    if c.get('gradient') not in ('none','horizontal','vertical','both'):raise ValueError('Invalid gradient direction')
+    for key in ('color','gradient_end_color'):
+        if not isinstance(c.get(key),str) or not re.fullmatch('#[0-9a-fA-F]{6}',c[key]):raise ValueError('Invalid color: '+key)
+    return c
+
 def pack(root,destination):
+    config=automata_config(root)
+    settings=['/* Generated from preview/cellular-automata-config.json. */','#pragma once']
+    for key in ('update_ms','time_hold_seconds','clear_every_minutes','fade_after_seconds','fade_duration_seconds'):settings.append('#define CA_'+key.upper()+' '+str(config[key]))
+    for key in ('color','gradient_end_color'):settings.append('#define CA_'+key.upper()+' 0x'+config[key][1:]+'U')
+    settings.append('#define CA_GRADIENT '+str(('none','horizontal','vertical','both').index(config['gradient'])))
+    Path(destination).with_name('cellular_automata_settings.h').write_text('\n'.join(settings),encoding='utf-8')
     names=['index.html']
     entries=[];source=['/* Generated public dashboard files. */','#include <stddef.h>','typedef struct {const char *path,*type;const unsigned char *data;size_t size;} dashboard_asset_t;']
     for i,name in enumerate(names):
@@ -19,10 +35,10 @@ def pack(root,destination):
             raw=re.sub(r'<link rel="stylesheet" href="[^"]+">','',raw)
             css='\n'.join((root/n).read_text(encoding='utf-8') for n in ['styles.css','studio.css','designer.css'])
             raw=raw.replace('</head>','<style>'+css+'</style></head>')
-            core=['engine.js','widget-data.js','animation.js','scene-weather.js','minute-birds.js','island-assets.js','scene.js','studio-state.js']
+            core=['engine.js','widget-data.js','animation.js','scene-weather.js','minute-birds.js','island-assets.js','cellular-automata.js','scene.js','studio-state.js']
             scripts=''.join('<script>'+(root/n).read_text(encoding='utf-8').replace('</script','<\\/script')+'</script>' for n in core)
             boots=','.join('function(){'+(root/n).read_text(encoding='utf-8').replace('</script','<\\/script')+'}' for n in ['app.js','designer.js','weather-panel.js','widget-editor.js'])
-            scripts+='<script>window.BoardEditorBoot=['+boots+'];</script><script>'+(root/'board-workspace.js').read_text(encoding='utf-8')+'</script>'
+            scripts+='<script>CellularAutomata.configure('+json.dumps(config)+');window.BoardEditorBoot=['+boots+'];</script><script>'+(root/'board-workspace.js').read_text(encoding='utf-8')+'</script>'
             raw=raw.replace('</body>',scripts+'</body>')
         data=gzip.compress(raw.encode('utf-8'),mtime=0)
         mime='text/html' if name.endswith('.html') else 'text/css' if name.endswith('.css') else 'text/javascript'

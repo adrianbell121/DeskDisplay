@@ -3,7 +3,7 @@ const S=require('./scene.js'),Store=require('./studio-state.js'),E=require('./en
 const date=new Date(2026,9,23,10,8,42);
 test('all migrated faces contain independent editable assets and compile below board limits',()=>{
   const state=Store.fresh();
-  for(const f of state.faces){assert.ok(f.widgets.length>1);const image=S.render(f,1,date);assert.equal(image.length,16384);for(let i=3;i<image.length;i+=4)assert.equal(image[i],255);const binary=S.compile(f);assert.equal(Buffer.from(binary.subarray(0,4)).toString(),'FLS2');assert.ok(binary.length<262144,f.name);}
+  for(const f of state.faces){assert.ok(f.widgets.length>=1);const image=S.render(f,1,date);assert.equal(image.length,16384);for(let i=3;i<image.length;i+=4)assert.equal(image[i],255);const binary=S.compile(f);assert.equal(Buffer.from(binary.subarray(0,4)).toString(),'FLS2');assert.ok(binary.length<262144,f.name);}
   const island=state.faces.find(f=>f.id==='island');assert.equal(island.widgets.filter(w=>w.type==='palm').length,2);assert.equal(island.widgets.filter(w=>w.type==='boat').length,1);
 });
 test('moving, resizing, hiding, removing, layering, and effects change only the intended instance',()=>{
