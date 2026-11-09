@@ -5,6 +5,22 @@
 
 static uint16_t *clock_pixels;
 
+static bool prepare_time(cellular_automata_t *s,int64_t target_ms)
+{
+    if(!clock_pixels)clock_pixels=heap_caps_calloc(4096,sizeof(*clock_pixels),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+    if(!clock_pixels)return false;
+    time_t epoch=target_ms/1000;struct tm t;localtime_r(&epoch,&t);
+    island_element_render(clock_pixels,0,&t,true,0);
+    uint64_t clock[13]={0};
+    for(unsigned y=0;y<13;y++)for(unsigned x=0;x<49;x++)if(clock_pixels[(15+y)*64+5+x])clock[y]|=UINT64_C(1)<<x;
+    cellular_automata_clock(s->frames[0],clock);
+    // Play this forward history backwards; Life itself has no unique inverse.
+    for(unsigned i=1;i<=CA_TIME_REVERSE_FRAMES;i++){
+        memcpy(s->frames[i],s->frames[i-1],sizeof(s->frames[i]));cellular_automata_step_rows(s->frames[i]);
+    }
+    s->overlay_at_ms=target_ms;s->overlay_pending=true;return true;
+}
+
 static uint16_t cell_color(unsigned x,unsigned y,int64_t age_ms)
 {
     unsigned position=CA_GRADIENT==1?x:CA_GRADIENT==2?y:CA_GRADIENT==3?x+y:0;
@@ -20,31 +36,48 @@ static uint16_t cell_color(unsigned x,unsigned y,int64_t age_ms)
 
 void cellular_automata_render(cellular_automata_t **state, uint16_t *pixels,
                              int x, int y, unsigned w, unsigned h, uint16_t color,
-                             const struct tm *time, bool valid, int64_t now_ms)
+                             const struct tm *time, bool valid, int64_t now_ms,int64_t wall_ms)
 {
     (void)color;
     if(!*state){
-        *state=heap_caps_calloc(1,sizeof(**state),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
+        *state=heap_caps_calloc(1,sizeof(**state)+(CA_TIME_REVERSE_FRAMES+1)*sizeof(uint64_t[64]),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
         if(!*state)return;
-        (*state)->minute=-1;(*state)->updated_ms=now_ms;
+        (*state)->minute_ms=-1;(*state)->overlay_at_ms=-1;(*state)->updated_ms=now_ms;
     }
     cellular_automata_t *s=*state;
     cellular_automata_age(s,now_ms,CA_FADE_AFTER_SECONDS*1000LL,CA_FADE_DURATION_SECONDS*1000LL);
-    int minute=time->tm_hour*60+time->tm_min;
-    if(valid&&s->minute!=minute){
-        if(!clock_pixels)clock_pixels=heap_caps_calloc(4096,sizeof(*clock_pixels),MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);
-        if(!clock_pixels)return;
-        island_element_render(clock_pixels,0,time,true,now_ms*1000);
-        uint64_t clock[13]={0};
-        for(unsigned dy=0;dy<13;dy++)for(unsigned dx=0;dx<49;dx++)
-            if(clock_pixels[(15+dy)*64+5+dx])clock[dy]|=UINT64_C(1)<<dx;
-        if(minute%CA_CLEAR_EVERY_MINUTES==0){memset(s->cells,0,sizeof(s->cells));memset(s->born,0,sizeof(s->born));}
-        cellular_automata_stamp(s,clock);s->minute=minute;s->updated_ms=now_ms;
-        s->hold_until_ms=now_ms+CA_TIME_HOLD_SECONDS*1000LL;
-    }else if(now_ms>=s->hold_until_ms&&now_ms-s->updated_ms>=CA_UPDATE_MS){cellular_automata_step(s);s->updated_ms=now_ms;}
+    int64_t minute_ms=wall_ms/60000*60000;
+    bool initial=s->minute_ms<0,changed=valid&&s->minute_ms!=minute_ms;
+    if(changed){
+        if(time->tm_min%CA_CLEAR_EVERY_MINUTES==0){memset(s->cells,0,sizeof(s->cells));memset(s->born,0,sizeof(s->born));}
+        s->minute_ms=minute_ms;
+    }
+    if(now_ms-s->updated_ms>=CA_UPDATE_MS){cellular_automata_step(s);s->updated_ms=now_ms;}
+    if(!valid){s->overlay_pending=false;s->overlay_at_ms=-1;}
+    else{
+        if(s->overlay_pending&&(s->overlay_at_ms/60000<minute_ms/60000||s->overlay_at_ms/60000>minute_ms/60000+1)){s->overlay_pending=false;s->overlay_at_ms=-1;}
+        if(s->overlay_pending&&wall_ms>=s->overlay_at_ms+CA_TIME_HOLD_SECONDS*1000LL){
+            cellular_automata_merge(s,s->frames[0],now_ms);s->overlay_pending=false;
+        }
+        int64_t target=cellular_automata_target(wall_ms,CA_TIME_REVERSE_FRAMES,CA_UPDATE_MS,CA_TIME_HOLD_SECONDS*1000);
+        if(target<0&&initial)target=wall_ms;
+        else if(target<0&&changed&&s->overlay_at_ms!=minute_ms)target=minute_ms;
+        if(target>=0&&target!=s->overlay_at_ms){
+            if(s->overlay_pending){cellular_automata_merge(s,s->frames[0],now_ms);s->overlay_pending=false;}
+            prepare_time(s,target);
+        }
+        if(s->overlay_pending&&wall_ms>=s->overlay_at_ms+CA_TIME_HOLD_SECONDS*1000LL){
+            cellular_automata_merge(s,s->frames[0],now_ms);s->overlay_pending=false;
+        }
+    }
     cellular_automata_age(s,now_ms,CA_FADE_AFTER_SECONDS*1000LL,CA_FADE_DURATION_SECONDS*1000LL);
     for(unsigned dy=0;dy<h;dy++)for(unsigned dx=0;dx<w;dx++){
         int tx=x+(int)dx,ty=y+(int)dy;unsigned sx=(2*dx+1)*64/(2*w),sy=(2*dy+1)*64/(2*h);
-        if((unsigned)tx<64&&(unsigned)ty<64&&((s->cells[sy]>>sx)&1))pixels[ty*64+tx]=cell_color(sx,sy,now_ms+1-s->born[sy*64+sx]);
+        if((unsigned)tx>=64||(unsigned)ty>=64)continue;
+        if((s->cells[sy]>>sx)&1)pixels[ty*64+tx]=cell_color(sx,sy,now_ms+1-s->born[sy*64+sx]);
+        if(s->overlay_pending){unsigned frame=cellular_automata_frame(wall_ms,s->overlay_at_ms,CA_TIME_REVERSE_FRAMES,CA_UPDATE_MS);
+            if(sx>=7&&sx<56&&sy>=25&&sy<38)pixels[ty*64+tx]=0;
+            if((s->frames[frame][sy]>>sx)&1)pixels[ty*64+tx]=cell_color(sx,sy,0);
+        }
     }
 }

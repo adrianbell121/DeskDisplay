@@ -1,4 +1,4 @@
-"""Opt-in board check: Island toggle, clock-seeded Life, minute stamping and reboot."""
+"""Opt-in board check: Island toggle, reverse-time overlay, minute hold, merge and reboot."""
 import argparse,json,re,subprocess,sys,time,urllib.request
 from datetime import datetime,timedelta
 from pathlib import Path
@@ -24,27 +24,21 @@ def capture(link):
         if len(rows)==64:return rows
     raise AssertionError('Incomplete framebuffer capture')
 
-def clock(local):
-    code="""const I=require('./preview/island-assets.js'),[h,m]=process.argv.slice(1).map(Number);
-const a=I.raster({islandPart:0,w:49,h:13,color:'#ffffff',secondary:'#ffffff',format:'12',speed:1},0,new Date(2026,0,1,h,m));
-console.log(JSON.stringify(Array.from({length:13},(_,y)=>Array.from({length:49},(_,x)=>a[(y*49+x)*4+3]?'1':'0').join(''))));"""
+def clock_frames(local):
+    code="const C=require('./preview/cellular-automata.js'),[h,m]=process.argv.slice(1).map(Number);console.log(JSON.stringify(C.clockFrames(new Date(2026,0,1,h,m)).map(f=>Array.from(f,(_,i)=>f[i]?i:-1).filter(i=>i>=0))));"
     return json.loads(subprocess.run(['node','-e',code,str(local.hour),str(local.minute)],cwd=ROOT,check=True,capture_output=True,text=True).stdout)
 
-def cells(rows):return [int(row[i:i+4],16)!=0 for row in rows for i in range(0,256,4)]
+def raw_cells(rows):return [int(row[i:i+4],16) for row in rows for i in range(0,256,4)]
 
-def has_clock(rows,expected):
-    grid=cells(rows)
-    return all(grid[(25+y)*64+7+x]==(expected[y][x]=='1') for y in range(13) for x in range(49))
+def full_color(i):
+    x,y=i%64,i//64;direction=CONFIG['gradient']
+    pos=x if direction=='horizontal' else y if direction=='vertical' else x+y if direction=='both' else 0
+    extent=126 if direction=='both' else 63
+    a=int(CONFIG['color'][1:],16);b=int(CONFIG['gradient_end_color'][1:],16)
+    r,g,blue=[(((a>>n)&255)*(extent-pos)+((b>>n)&255)*pos)//extent for n in (16,8,0)]
+    return ((r&248)<<8)|((g&252)<<3)|(blue>>3)
 
-def step(grid):
-    out=[False]*4096
-    for y in range(64):
-        for x in range(64):
-            n=sum(grid[((y+dy)%64)*64+(x+dx)%64] for dy in (-1,0,1) for dx in (-1,0,1) if dx or dy)
-            out[y*64+x]=n==3 or grid[y*64+x] and n==2
-    return out
-
-def outside(grid):return [v for i,v in enumerate(grid) if not (25<=i//64<38 and 7<=i%64<56)]
+def has_overlay(values,mask):return bool(mask) and all(values[i]==full_color(i) for i in mask)
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
@@ -63,43 +57,39 @@ def main():
     with connect(args.port) as link:
         status=request(link,'status','STATUS ');assert 'mode=custom' in status and 'cellular_automata=1' in status,status
         try:
-            local=datetime.fromisoformat(re.search(r' local=(\S+)',status)[1]);expected=clock(local)
-            # mode next calls desk_ui_next(), exactly as the debounced BOOT handler does.
-            assert 'MODE OK' in request(link,'mode next','MODE ')
-            time.sleep(.04);first=capture(link);assert has_clock(first,expected),'Initial centered Island clock missing'
-            assert not any(outside(cells(first))),'Initial seed contains cells outside the clock'
-            save_png(OUT/'time-seed.png',first)
-            time.sleep(3);assert capture(link)==first,'Clock changed during its five-second hold'
-            time.sleep(2.3);evolved=capture(link);assert evolved!=first,'Clock pixels are not evolving after the hold'
-            save_png(OUT/'time-evolved.png',evolved)
+            request(link,'mode next','MODE ')
             status=request(link,'status','STATUS ');assert 'mode=automata' in status,status
+            utc=int(re.search(r' utc=(\d+)',status)[1]);flip=(utc//60+1)*60
             local=datetime.fromisoformat(re.search(r' local=(\S+)',status)[1]);next_minute=local.replace(second=0)+timedelta(minutes=1)
-            expected=clock(next_minute);deadline=time.monotonic()+65;previous=evolved
-            print('Checking the next natural minute stamp at '+next_minute.strftime('%I:%M %p')+'...',flush=True)
+            frames=clock_frames(next_minute);seen=set();held=False;after=False
+            lead=CONFIG['time_reverse_frames']*CONFIG['update_ms']/1000;hold=CONFIG['time_hold_seconds']
+            print(f'Checking {lead:g}s reverse lead-in, minute flip at {next_minute:%I:%M %p}, {hold}s hold and merge...',flush=True)
+            deadline=time.monotonic()+70+hold
             while time.monotonic()<deadline:
-                frame=capture(link)
-                if has_clock(frame,expected):break
-                previous=frame;time.sleep(.03)
-            else:raise AssertionError('No centered clock stamp at the next minute')
-            save_png(OUT/'minute-stamp.png',frame)
-            candidate=cells(previous);target=outside(cells(frame))
-            if next_minute.minute%CONFIG['clear_every_minutes']==0:
-                assert not any(target),'Quarter-hour clear did not wipe outside cells'
-                candidate=cells(frame)
-            for _ in range(5):
-                if outside(candidate)==target:break
-                candidate=step(candidate)
-            else:raise AssertionError('Minute stamp reset cells outside the clock')
-            time.sleep(3);assert has_clock(capture(link),expected),'Minute stamp did not hold for five seconds'
-            time.sleep(2.3);assert capture(link)!=frame,'Minute stamp did not resume evolution'
-            print('PASS: centered time on entry, natural minute stamp, surrounding cells retained, and evolution resumed.',flush=True)
-            assert 'MODE OK' in request(link,'mode next','MODE ')
-            assert 'mode=diagnostics' in request(link,'status','STATUS ')
-            assert 'MODE OK' in request(link,'mode next','MODE ')
-            assert 'mode=custom' in request(link,'status','STATUS ')
-            time.sleep(.1);save_png(OUT/'restored-island.png',capture(link))
-        finally:
-            request(link,'mode custom','MODE ')
+                rows=capture(link);values=raw_cells(rows)
+                status=request(link,'status','STATUS ');utc=int(re.search(r' utc=(\d+)',status)[1])
+                if flip-lead<=utc<flip:
+                    for i in range(1,len(frames)):
+                        if i not in seen and has_overlay(values,frames[i]):
+                            seen.add(i);save_png(OUT/f'reverse-{i}.png',rows)
+                elif flip<=utc<flip+hold:
+                    if utc==flip and not has_overlay(values,frames[0]):continue
+                    assert has_overlay(values,frames[0]),'Completed clock missing during overlay hold'
+                    lit=set(frames[0]);assert all(values[y*64+x]==0 for y in range(25,38) for x in range(7,56) if y*64+x not in lit),'Clock backing did not mask the underlying game'
+                    if not held:save_png(OUT/'minute-overlay.png',rows);held=True
+                elif utc>=flip+hold+2:
+                    assert not has_overlay(values,frames[0]),'Time overlay did not release into the game'
+                    save_png(OUT/'after-merge.png',rows);after=True;break
+                time.sleep(.02)
+            assert after,'Overlay cycle timed out'
+            if hold:assert held,'Clock hold was not captured'
+            unique={tuple(mask) for mask in frames[1:] if mask}
+            assert len(seen)>=min(3,len(unique)),('Reverse frames were not observed',seen)
+            print('PASS: reverse animation, clean clock at minute change, overlay hold and game after merge.',flush=True)
+            request(link,'mode next','MODE ');assert 'mode=diagnostics' in request(link,'status','STATUS ')
+            request(link,'mode next','MODE ');assert 'mode=custom' in request(link,'status','STATUS ')
+            save_png(OUT/'restored-island.png',capture(link))
+        finally:request(link,'mode custom','MODE ')
         request(link,'restart','RESTARTING')
     time.sleep(4)
     with connect(args.port) as link:
@@ -107,8 +97,7 @@ def main():
         print(status.strip())
     after=get('status');assert after['sceneCrc']==after['savedSceneCrc']==before['savedSceneCrc']
     assert get('workspace')==workspace
-    report={'generationMs':CONFIG['update_ms'],'timeHoldSeconds':CONFIG['time_hold_seconds'],'cycle':'saved Island -> automata -> diagnostics -> saved Island','centeredTimeOnEntry':True,'naturalMinuteStamp':next_minute.isoformat(),'outsideCellsPreserved':True,'evolutionResumed':True,'savedIslandCrc':after['savedSceneCrc'],'workspaceUnchanged':True,'islandRestoredAfterReboot':True}
-    (OUT/'verification.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
-    print('PASS:',json.dumps(report))
+    report={'generationMs':CONFIG['update_ms'],'reverseFrames':CONFIG['time_reverse_frames'],'observedReverseFrames':sorted(seen,reverse=True),'timeHoldSeconds':hold,'minute':next_minute.isoformat(),'mergeReleased':True,'workspaceUnchanged':True,'islandRestoredAfterReboot':True}
+    (OUT/'verification.json').write_text(json.dumps(report,indent=2),encoding='utf-8');print('PASS:',json.dumps(report))
 
 if __name__=='__main__':main()

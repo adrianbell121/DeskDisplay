@@ -93,7 +93,7 @@ static void render(lv_timer_t *timer)
     if (mode == CLOCK) clock_face(&t, valid, phase);
     if (mode == ISLAND) island_face_render(pixels, &t, valid, now_us);
     if (mode == CUSTOM) scene_player_render(pixels, &t, valid, now_us / 1000,(int64_t)frame_time.tv_sec*1000000+frame_time.tv_usec);
-    if (mode == AUTOMATA) cellular_automata_render(&automata,pixels,0,0,64,64,rgb(148,231,128),&t,valid,now_us/1000);
+    if (mode == AUTOMATA) cellular_automata_render(&automata,pixels,0,0,64,64,rgb(148,231,128),&t,valid,now_us/1000,(int64_t)frame_time.tv_sec*1000+frame_time.tv_usec/1000);
     if (mode == DIAGNOSTICS) {
         static char rows[8][32];
         if(now!=last_second){char ip[32]="OFFLINE",zip[6];

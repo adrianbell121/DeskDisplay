@@ -44,7 +44,8 @@ speaker test. Close the serial monitor before another task uses the USB port.
   Diagnostics shows the Wi-Fi IP (or OFFLINE), uptime, saved weather location ZIP,
   and live HH:MM:SS AM/PM. An unavailable ZIP displays -----; leading zeros are kept.
   Without a saved scene, the built-in Island face is used. The game advances every
-  250 ms. Time holds for five seconds each minute; the grid clears every quarter
+  250 ms. The time overlay reverses into the next minute, holds five seconds, then
+  merges into the continuously running game. The grid clears every quarter
   hour. Old cells fade after 30 seconds and expire at 150 seconds. Timing and colors
   are in `cellular-automata-config.json` (rebuild/flash after editing).
 - Hold **BOOT** for one second to play the speaker test.

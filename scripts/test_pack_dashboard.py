@@ -7,7 +7,7 @@ class DashboardBundleTests(unittest.TestCase):
   config=json.loads((Path(__file__).resolve().parent.parent/'cellular-automata-config.json').read_text())
   with tempfile.TemporaryDirectory() as folder:
    root=Path(folder)
-   for change in [{'update_ms':0},{'time_hold_seconds':60},{'clear_every_minutes':7},{'fade_duration_seconds':0},{'color':'green'},{'gradient':'diagonal'}]:
+   for change in [{'time_reverse_frames':-1},{'time_reverse_frames':121},{'time_reverse_frames':120,'update_ms':60000},{'update_ms':0},{'time_hold_seconds':60},{'clear_every_minutes':7},{'fade_duration_seconds':0},{'color':'green'},{'gradient':'diagonal'}]:
     (root/'cellular-automata-config.json').write_text(json.dumps({**config,**change}))
     with self.assertRaises(ValueError):automata_config(root/'preview')
  def test_board_page_has_all_dependencies_and_no_computer_actions(self):

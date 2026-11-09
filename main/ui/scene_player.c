@@ -142,7 +142,7 @@ void scene_player_render(uint16_t *pixels, const struct tm *time, bool valid, in
     for(unsigned i=0;i<count;i++){
         const layer_t *l=&layers[i];unsigned frame=l->type?0:(elapsed*l->fps/1000)%l->frames;
         if(l->type==28){
-            cellular_automata_render(&automata[i],pixels,l->x,l->y,l->w,l->h,l->color,time,valid,now_ms);
+            cellular_automata_render(&automata[i],pixels,l->x,l->y,l->w,l->h,l->color,time,valid,now_ms,frame_wall_us/1000);
             continue;
         }
         if(l->type==27){

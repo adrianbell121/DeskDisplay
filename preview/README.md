@@ -39,19 +39,30 @@ It does not open, enumerate, probe, or flash a board on startup.
 
 ## Library page
 
-**Cellular automata** starts with centered Island-style time and holds the grid
-for five seconds each minute before applying Life rules. It clears immediately
-before the time stamp at :00, :15, :30 and :45. Other minutes replace only the
-clock rectangle. A continuously lit cell stays bright for 30 seconds, fades over
-the next 120 seconds, then is removed from the simulation. A cell that dies and
-is born again starts a new age; stamped time pixels also start fresh.
+**Cellular automata** runs continuously beneath an independent time overlay.
+The incoming Island-style clock is evolved forward for `time_reverse_frames`
+generations; that history plays backwards before the minute changes, finishing
+on the clean clock exactly at the minute boundary. Eight frames at 500 ms each
+start four seconds early. The clock then holds for `time_hold_seconds` (5 by
+default), while the game underneath keeps advancing. After the hold its live
+pixels join the game; dead overlay pixels never erase living cells below.
+A black backing within the clock rectangle makes the overlay readable while
+leaving the hidden game state untouched. The backing disappears at merge.
+Opening the face shows the current clock immediately, unless the next clock's
+reverse animation is already due. The regular minute schedule takes priority.
+
+The configured clear interval still clears only the underlying game on aligned
+minute boundaries. Aging and color gradients also apply to the game independently
+of the overlay. New clock cells start fresh ages when merged; cells already alive
+retain their ages. A dead cell's age resets when it is born again.
 
 Edit `cellular-automata-config.json` for all shared settings:
 
 | Setting | Meaning |
 | --- | --- |
 | `update_ms` | Milliseconds per generation (250 by default) |
-| `time_hold_seconds` | Freeze the clock/grid before evolution (5) |
+| `time_reverse_frames` | Incoming clock frames played backward (0–120); lead-in = frames × update_ms |
+| `time_hold_seconds` | Hold the completed clock overlay; the game keeps running (5) |
 | `clear_every_minutes` | Clear at matching minute boundaries (15; must divide 60) |
 | `fade_after_seconds` | Continuous life before fading starts (30) |
 | `fade_duration_seconds` | Fade duration before removing a cell (120) |
@@ -62,6 +73,7 @@ Edit `cellular-automata-config.json` for all shared settings:
 Horizontal goes left to right; vertical goes top to bottom. Both averages the two
 positions, giving a diagonal gradient from top-left to bottom-right. Age dims the
 resulting color. These shared colors override the cellular widget's color picker.
+Lead-in plus hold must fit within 60 seconds; invalid combinations are rejected.
 Reload local Studio after editing this file; rebuild/flash to update the board.
 Use Computer time or Tick clock to preview minute changes. Board simulation stays
 live rather than using a baked sprite. Keep speed 1 and extra transforms off.

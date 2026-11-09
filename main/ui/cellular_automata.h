@@ -7,21 +7,43 @@
 typedef struct {
     uint64_t cells[64];
     int64_t born[4096];
-    int minute;
-    int64_t updated_ms, hold_until_ms;
+    int64_t minute_ms, updated_ms, overlay_at_ms;
+    bool overlay_pending;
+    uint64_t frames[][64];
 } cellular_automata_t;
 
 void cellular_automata_render(cellular_automata_t **state, uint16_t *pixels,
                              int x, int y, unsigned w, unsigned h, uint16_t color,
-                             const struct tm *time, bool valid, int64_t now_ms);
+                             const struct tm *time, bool valid, int64_t now_ms, int64_t wall_ms);
 
-static inline void cellular_automata_stamp(cellular_automata_t *s, const uint64_t clock[13])
+static inline void cellular_automata_clock(uint64_t rows[64],const uint64_t clock[13])
 {
-    const uint64_t mask=((UINT64_C(1)<<49)-1)<<7;
-    for(unsigned y=0;y<13;y++){
-        s->cells[25+y]=(s->cells[25+y]&~mask)|(clock[y]<<7);
-        memset(&s->born[(25+y)*64+7],0,49*sizeof(s->born[0]));
+    memset(rows,0,64*sizeof(*rows));
+    for(unsigned y=0;y<13;y++)rows[25+y]=clock[y]<<7;
+}
+
+static inline void cellular_automata_merge(cellular_automata_t *s,const uint64_t overlay[64],int64_t now_ms)
+{
+    for(unsigned y=0;y<64;y++){
+        uint64_t added=overlay[y]&~s->cells[y];
+        for(unsigned x=0;x<64;x++)if((added>>x)&1)s->born[y*64+x]=now_ms+1;
+        s->cells[y]|=overlay[y];
     }
+}
+
+static inline int64_t cellular_automata_target(int64_t wall_ms,unsigned frames,unsigned update_ms,unsigned hold_ms)
+{
+    int64_t minute=wall_ms/60000*60000,phase=wall_ms-minute;
+    if(phase<hold_ms)return minute;
+    if(frames&&60000-phase<=(int64_t)frames*update_ms)return minute+60000;
+    return -1;
+}
+
+static inline unsigned cellular_automata_frame(int64_t wall_ms,int64_t target,unsigned frames,unsigned update_ms)
+{
+    if(wall_ms>=target)return 0;
+    uint64_t remaining=(uint64_t)(target-wall_ms+update_ms-1)/update_ms;
+    return remaining>frames?frames:(unsigned)remaining;
 }
 
 static inline void cellular_automata_age(cellular_automata_t *s,int64_t now_ms,int64_t delay_ms,int64_t fade_ms)
@@ -34,14 +56,16 @@ static inline void cellular_automata_age(cellular_automata_t *s,int64_t now_ms,i
     }
 }
 
-static inline void cellular_automata_step(cellular_automata_t *s)
+static inline void cellular_automata_step_rows(uint64_t cells[64])
 {
     uint64_t next[64]={0};
     for (unsigned y=0;y<64;y++) for (unsigned x=0;x<64;x++) {
         unsigned neighbors=0;
         for (int dy=-1;dy<=1;dy++) for (int dx=-1;dx<=1;dx++)
-            if(dx||dy)neighbors+=(s->cells[(y+dy+64)%64]>>((x+dx+64)%64))&1;
-        if(neighbors==3 || (neighbors==2 && ((s->cells[y]>>x)&1)))next[y]|=UINT64_C(1)<<x;
+            if(dx||dy)neighbors+=(cells[(y+dy+64)%64]>>((x+dx+64)%64))&1;
+        if(neighbors==3 || (neighbors==2 && ((cells[y]>>x)&1)))next[y]|=UINT64_C(1)<<x;
     }
-    memcpy(s->cells,next,sizeof(next));
+    memcpy(cells,next,sizeof(next));
 }
+
+static inline void cellular_automata_step(cellular_automata_t *s){cellular_automata_step_rows(s->cells);}

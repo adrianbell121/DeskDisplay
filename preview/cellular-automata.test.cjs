@@ -1,7 +1,8 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const C=require('./cellular-automata.js'),S=require('./scene.js'),Store=require('./studio-state.js');
 const I=require('./island-assets.js');
-C.configure({...require('../cellular-automata-config.json'),update_ms:250,clear_every_minutes:15,time_hold_seconds:5});
+const standard={...require('../cellular-automata-config.json'),time_reverse_frames:8,update_ms:500,clear_every_minutes:15,time_hold_seconds:5,fade_after_seconds:30,fade_duration_seconds:120};
+C.configure(standard);
 function pattern(points){const s=C.create();for(const [x,y]of points)s.cells[y*64+x]=1;return s;}
 const glider=()=>pattern([[2,1],[3,2],[1,3],[2,3],[3,3]]);
 
@@ -22,35 +23,83 @@ test('Conway evolution keeps moving and wraps at the edges',()=>{
   assert.equal(edge.cells[62*64],1);assert.equal(edge.cells[63*64],1);assert.equal(edge.cells[0],1);
 });
 
-test('time stamping reuses Island digits and AM/PM and replaces only the centered rectangle',()=>{
+test('clock mask reuses Island digits and AM/PM without touching the game',()=>{
   for(const [h,m]of [[0,0],[1,2],[11,59],[12,0],[13,7],[23,59]]){
-    const s=C.create();s.cells.fill(1);const date=new Date(2026,10,9,h,m);
+    const date=new Date(2026,10,9,h,m),cells=C.clockCells(date);
     const clock=I.raster({islandPart:0,w:49,h:13,color:'#ffffff',secondary:'#ffffff',format:'12',speed:1},0,date);
-    C.stamp(s,date);assert.equal(s.minute,h*60+m);
-    for(let y=0;y<64;y++)for(let x=0;x<64;x++)assert.equal(s.cells[y*64+x],x>=7&&x<56&&y>=25&&y<38?(clock[((y-25)*49+x-7)*4+3]?1:0):1);
+    for(let y=0;y<64;y++)for(let x=0;x<64;x++)assert.equal(cells[y*64+x],x>=7&&x<56&&y>=25&&y<38?(clock[((y-25)*49+x-7)*4+3]?1:0):0);
   }
 });
 
-test('preview holds time five seconds, then evolves at configured speed',()=>{
-  const w=S.cellularAutomata().widgets[0],date=new Date(2026,10,9,12,34),first=S.raster(w,0,date);
-  assert.deepEqual(S.raster(w,.249,date),first);
-  assert.deepEqual(S.raster(w,4.999,date),first);
-  const evolved=S.raster(w,5,date);assert.notDeepEqual(evolved,first);
-  assert.deepEqual(S.raster(w,5.249,date),evolved);
-  assert.notDeepEqual(S.raster(w,5.25,date),evolved);
-  const next=new Date(2026,10,9,12,35),stamped=S.raster(w,6,next);
-  assert.notDeepEqual(stamped,evolved);assert.deepEqual(S.raster(w,10.999,next),stamped);
-  assert.notDeepEqual(S.raster(w,11,next),stamped);
-  C.reset(w);assert.deepEqual(S.raster(w,5,date),first,'Re-entry starts with the time itself');
-  S.raster(w,5.25,date);assert.deepEqual(S.raster(w,0,date),first,'Rewind starts with the time itself');
+test('eight reverse frames at 500 ms finish exactly on the incoming minute',()=>{
+  const start=new Date(2026,10,9,12,34,55).getTime(),flip=new Date(2026,10,9,12,35).getTime(),s=C.create();
+  C.advance(s,0,new Date(start));
+  const frames=C.clockFrames(new Date(flip));assert.equal(frames.length,9);
+  assert.equal(C.target(flip-4001),-1);assert.equal(C.target(flip-4000),flip);
+  for(let i=0;i<8;i++){
+    const wall=flip-4000+i*500;C.advance(s,(wall-start)/1000,new Date(wall));
+    assert.equal(s.overlayAt,flip);assert.deepEqual(C.overlay(s,new Date(wall)),frames[8-i]);
+  }
+  C.advance(s,5,new Date(flip));assert.deepEqual(C.overlay(s,new Date(flip)),frames[0]);
+  C.advance(s,9.999,new Date(flip+4999));assert.deepEqual(C.overlay(s,new Date(flip+4999)),frames[0]);
+  C.advance(s,10,new Date(flip+5000));assert.equal(C.overlay(s,new Date(flip+5000)),null);
+  for(let i=0;i<4096;i++)if(frames[0][i])assert.equal(s.cells[i],1);
 });
 
-test('quarter-hour clear runs before stamping; ordinary minutes preserve outside cells',()=>{
-  for(const minute of [0,15,30,45]){const q=C.create();q.cells[0]=1;C.advance(q,0,new Date(2026,10,9,13,minute));assert.equal(q.cells[0],0);assert.ok(q.cells.some(Boolean));}
+test('the underlying game advances during the hold and merge never erases live cells',()=>{
+  const s=glider(),date=new Date(2026,10,9,12,34,10),before=s.cells.slice();
+  C.advance(s,0,date);const top=C.overlay(s,date).slice();assert.deepEqual(s.cells,before);
+  const expected={cells:before};C.step(expected);
+  C.advance(s,.5,new Date(date.getTime()+500));assert.deepEqual(s.cells,expected.cells);
+  assert.deepEqual(C.overlay(s,new Date(date.getTime()+500)),top);
+  const all=C.create();all.cells.fill(1);all.born.fill(7);C.merge(all,top,10);
+  assert.ok(all.cells.every(v=>v===1));assert.ok(all.born.every(v=>v===7));
+  const empty=C.create();C.merge(empty,top,10);assert.deepEqual(empty.cells,top);
+  for(let i=0;i<4096;i++)assert.equal(empty.born[i],top[i]?11:0);
+});
+
+test('the base also keeps advancing throughout the reverse animation',()=>{
+  const s=glider(),start=new Date(2026,10,9,12,34,56),expected={cells:s.cells.slice()};
+  C.advance(s,0,start);
+  for(let i=1;i<=8;i++){C.step(expected);C.advance(s,i*.5,new Date(start.getTime()+i*500));assert.deepEqual(s.cells,expected.cells);}
+});
+
+test('incoming frames use the next hour, AM/PM and date at midnight',()=>{
+  for(const [h,m]of [[11,59],[12,59],[23,59]]){
+    const date=new Date(2026,10,9,h,m,56),s=C.create();C.advance(s,0,date);
+    const next=new Date(date.getTime()+4000);assert.deepEqual(s.frames[0],C.clockCells(next));
+  }
+});
+
+test('scheduled clears affect the game only, once per aligned boundary',()=>{
+  for(const minute of [0,15,30,45]){const q=C.create();q.cells[0]=1;const d=new Date(2026,10,9,13,minute);C.advance(q,0,d);assert.equal(q.cells[0],0);assert.ok(C.overlay(q,d).some(Boolean));}
   const s=C.create();s.cells[0]=1;C.advance(s,0,new Date(2026,10,9,12,14));assert.equal(s.cells[0],1);
-  C.advance(s,1,new Date(2026,10,9,12,15));assert.equal(s.cells[0],0);assert.ok(s.cells.some(Boolean));
-  s.cells[0]=1;C.advance(s,2,new Date(2026,10,9,12,15));assert.equal(s.cells[0],1,'Clear only once per boundary');
-  C.advance(s,3,new Date(2026,10,9,12,16));assert.equal(s.cells[0],1);
+  C.advance(s,.01,new Date(2026,10,9,12,15));assert.equal(s.cells[0],0);
+  s.cells[0]=1;C.advance(s,.02,new Date(2026,10,9,12,15));assert.equal(s.cells[0],1);
+  C.advance(s,.03,new Date(2026,10,9,12,16));assert.equal(s.cells[0],1);
+});
+
+test('zero reverse frames disables the lead-in and zero hold merges immediately',()=>{
+  try{
+    C.configure({...standard,time_reverse_frames:0,time_hold_seconds:0});
+    const s=C.create(),date=new Date(2026,10,9,12,34);C.advance(s,0,date);
+    assert.equal(C.overlay(s,date),null);assert.deepEqual(s.cells,C.clockCells(date));
+    assert.equal(C.target(date.getTime()+59999),-1);
+  }finally{C.configure(standard);}
+});
+
+test('clock overlay has an opaque backing without permanently hiding the game',()=>{
+  const w=S.cellularAutomata().widgets[0],date=new Date(2026,10,9,12,34),mask=C.clockCells(date);
+  const image=C.raster(w,0,date);
+  for(let y=25;y<38;y++)for(let x=7;x<56;x++){
+    const i=y*64+x;assert.equal(image[i*4+3],255);
+    if(!mask[i])assert.deepEqual([...image.slice(i*4,i*4+3)],[0,0,0]);
+  }
+  assert.equal(image[3],0,'Backing covers only the clock rectangle');
+  C.raster(w,5,new Date(date.getTime()+5000));
+  const released=C.raster(w,5,new Date(date.getTime()+5000));
+  const gap=mask.findIndex((v,i)=>!v&&i%64>=7&&i%64<56&&i/64>=25&&i/64<38);
+  assert.equal(released[gap*4+3],0,'Backing disappears after the overlay merges');
 });
 
 test('continuous life fades after 30 seconds, expires at 150, and death resets age',()=>{
@@ -75,7 +124,7 @@ test('config supports solid, horizontal, vertical and two-axis gradients',()=>{
 
 test('config rejects invalid timing, clear intervals and color values',()=>{
   const original=require('../cellular-automata-config.json');
-  for(const change of [{update_ms:0},{fade_duration_seconds:0},{clear_every_minutes:7},{color:'green'},{gradient:'diagonal'}])assert.throws(()=>C.configure({...original,...change}),/Invalid/);
+  for(const change of [{time_reverse_frames:-1},{time_reverse_frames:121},{time_reverse_frames:120,update_ms:60000},{update_ms:0},{fade_duration_seconds:0},{clear_every_minutes:7},{color:'green'},{gradient:'diagonal'}])assert.throws(()=>C.configure({...original,...change}),/Invalid|fit within/);
 });
 
 test('scene stays procedural on upload and rejects unsupported movement',()=>{
