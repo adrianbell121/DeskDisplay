@@ -14,6 +14,13 @@ from test_scene_protocol import FakeBoard
 
 
 class LocalServerTests(unittest.TestCase):
+    def test_shared_board_config_is_served_without_documentation(self):
+        status,data=self.request('/cellular-automata-config.json')
+        from pack_dashboard import automata_config
+        self.assertEqual(status,200)
+        self.assertEqual(data,automata_config(server.PREVIEW))
+        self.assertNotIn('_comments',data)
+
     @classmethod
     def setUpClass(cls):
         cls.httpd=http.server.ThreadingHTTPServer(('127.0.0.1',0),server.Handler)

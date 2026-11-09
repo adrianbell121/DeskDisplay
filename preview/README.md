@@ -46,7 +46,7 @@ clock rectangle. A continuously lit cell stays bright for 30 seconds, fades over
 the next 120 seconds, then is removed from the simulation. A cell that dies and
 is born again starts a new age; stamped time pixels also start fresh.
 
-Edit `preview/cellular-automata-config.json` for all shared settings:
+Edit `cellular-automata-config.json` for all shared settings:
 
 | Setting | Meaning |
 | --- | --- |

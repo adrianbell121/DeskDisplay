@@ -108,6 +108,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         if not self.allowed_host():
             return self.send_json({"error": "Loopback host required"}, 403)
+        if self.path == '/cellular-automata-config.json':
+            from pack_dashboard import automata_config
+            try:return self.send_json(automata_config(PREVIEW))
+            except (ValueError,OSError) as error:return self.send_json({'error':str(error)},400)
         if self.path == "/api/workspace":
             from workspace_store import read
             return self.send_json(read())

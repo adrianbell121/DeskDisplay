@@ -1,7 +1,9 @@
 {
   "cmake.configureOnOpen": false,
   "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
-  "files.associations": {"*.h": "c"},
+  "files.associations": {
+    "*.h": "c"
+  },
   "files.exclude": {
     ".tools": true,
     "build": true,
@@ -17,7 +19,18 @@
     "managed_components": true,
     "artifacts": true
   },
-  "idf.currentSetup": "C:\\esp\\v6.1\\esp-idf",
+  "idf.currentSetup": "C:\\Users\\adria\\DeskDisplay\\.tools\\esp-idf",
   "idf.flashType": "UART",
-  "idf.port": "COM4"
+  "idf.port": "COM4",
+  "idf.customExtraVars": {
+    "IDF_PATH": "C:\\Users\\adria\\DeskDisplay\\.tools\\esp-idf",
+    "IDF_TOOLS_PATH": "C:\\Users\\adria\\DeskDisplay\\.tools\\espressif",
+    "IDF_PYTHON_ENV_PATH": "C:\\Users\\adria\\DeskDisplay\\.tools\\espressif\\python_env\\idf5.5_py3.11_env"
+  },
+  "clangd.path": "C:\\Espressif\\tools\\esp-clangd\\esp-21.1.3_20260408\\esp-clangd\\bin\\clangd.exe",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=**",
+    "--compile-commands-dir=c:\\Users\\adria\\DeskDisplay\\build"
+  ]
 }

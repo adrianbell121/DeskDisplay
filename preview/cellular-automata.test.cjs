@@ -1,6 +1,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const C=require('./cellular-automata.js'),S=require('./scene.js'),Store=require('./studio-state.js');
 const I=require('./island-assets.js');
+C.configure({...require('../cellular-automata-config.json'),update_ms:250,clear_every_minutes:15,time_hold_seconds:5});
 function pattern(points){const s=C.create();for(const [x,y]of points)s.cells[y*64+x]=1;return s;}
 const glider=()=>pattern([[2,1],[3,2],[1,3],[2,3],[3,3]]);
 
@@ -61,7 +62,7 @@ test('continuous life fades after 30 seconds, expires at 150, and death resets a
 });
 
 test('config supports solid, horizontal, vertical and two-axis gradients',()=>{
-  const original=require('./cellular-automata-config.json');
+  const original=require('../cellular-automata-config.json');
   try{for(const direction of ['none','horizontal','vertical','both']){
     C.configure({...original,color:'#ff0000',gradient_end_color:'#0000ff',gradient:direction});
     assert.deepEqual(C.cellColor(0,0,0),[255,0,0,255]);
@@ -73,7 +74,7 @@ test('config supports solid, horizontal, vertical and two-axis gradients',()=>{
 });
 
 test('config rejects invalid timing, clear intervals and color values',()=>{
-  const original=require('./cellular-automata-config.json');
+  const original=require('../cellular-automata-config.json');
   for(const change of [{update_ms:0},{fade_duration_seconds:0},{clear_every_minutes:7},{color:'green'},{gradient:'diagonal'}])assert.throws(()=>C.configure({...original,...change}),/Invalid/);
 });
 

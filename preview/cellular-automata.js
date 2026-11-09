@@ -1,7 +1,7 @@
 (function(root){
   'use strict';
   const I=typeof module!=='undefined'&&module.exports?require('./island-assets.js'):root.IslandAssets;
-  let config=typeof module!=='undefined'&&module.exports?require('./cellular-automata-config.json'):null;
+  let config=typeof module!=='undefined'&&module.exports?require('../cellular-automata-config.json'):null;
   function configure(value){
     for(const [key,low,high]of [['update_ms',1,60000],['time_hold_seconds',0,59],['clear_every_minutes',1,60],['fade_after_seconds',0,86400],['fade_duration_seconds',1,86400]])if(!Number.isInteger(value[key])||value[key]<low||value[key]>high)throw new Error('Invalid cellular automata setting: '+key);
     if(60%value.clear_every_minutes||!['none','horizontal','vertical','both'].includes(value.gradient)||!['color','gradient_end_color'].every(key=>/^#[0-9a-f]{6}$/i.test(value[key])))throw new Error('Invalid cellular automata clear interval or colors');

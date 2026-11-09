@@ -10,11 +10,14 @@
 #include "scene_player.h"
 #include "cellular_automata.h"
 #include "desk_ui.h"
+#include "dashboard.h"
+#include "network.h"
+#include "diagnostics_face.h"
 #include "esp_timer.h"
 #include "lvgl.h"
 
-enum { CLOCK, ISLAND, CUSTOM, AUTOMATA, FACE_COUNT, TEST = FACE_COUNT };
-static const char *names[] = {"clock", "island", "custom", "automata", "test"};
+enum { CLOCK, ISLAND, CUSTOM, AUTOMATA, DIAGNOSTICS, FACE_COUNT, TEST = FACE_COUNT };
+static const char *names[] = {"clock", "island", "custom", "automata", "diagnostics", "test"};
 static int mode = ISLAND;
 static cellular_automata_t *automata;
 static int64_t test_until;
@@ -91,6 +94,14 @@ static void render(lv_timer_t *timer)
     if (mode == ISLAND) island_face_render(pixels, &t, valid, now_us);
     if (mode == CUSTOM) scene_player_render(pixels, &t, valid, now_us / 1000,(int64_t)frame_time.tv_sec*1000000+frame_time.tv_usec);
     if (mode == AUTOMATA) cellular_automata_render(&automata,pixels,0,0,64,64,rgb(148,231,128),&t,valid,now_us/1000);
+    if (mode == DIAGNOSTICS) {
+        static char rows[8][32];
+        if(now!=last_second){char ip[32]="OFFLINE",zip[6];
+            if(!strcmp(board_network_status(),"connected"))dashboard_address(ip,sizeof(ip));
+            dashboard_postal(zip);diagnostics_lines(rows,ip,zip,(uint64_t)(now_us/1000000),&t,valid);
+        }
+        diagnostics_render(pixels,rows);
+    }
     if (mode == TEST) {
         static const uint16_t colors[] = {0xf800, 0x07e0, 0x001f, 0x8410};
         unsigned stage = (now_us / 1000000) % 4;
@@ -143,7 +154,7 @@ bool desk_ui_mode(const char *name)
 }
 void desk_ui_next(void)
 {
-    desk_ui_mode(mode==AUTOMATA?(scene_player_ready()?"custom":"island"):"automata");
+    desk_ui_mode(mode==AUTOMATA?"diagnostics":mode==DIAGNOSTICS?(scene_player_ready()?"custom":"island"):"automata");
 }
 void desk_ui_custom_changed(void) { mode = CUSTOM; last_second = -1; }
 const char *desk_ui_mode_name(void) { return names[mode]; }

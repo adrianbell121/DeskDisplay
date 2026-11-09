@@ -1,0 +1,21 @@
+{
+  "_comments": {
+    "_usage": "Shared BOARD FIRMWARE and browser preview configuration. Rebuild and flash after changing settings to update the board; reload local Studio for preview changes. _comments contains documentation, not settings.",
+    "update_ms": "Integer 1..60000 milliseconds between generations. Smaller = faster. Examples: 250 = about 4 generations/second; 500 = about 2.",
+    "time_hold_seconds": "Integer 0..59 seconds to freeze the grid after each time stamp. 0 = no hold.",
+    "clear_every_minutes": "Allowed integers: 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60. Aligned to minutes of each hour: 15 clears at :00/:15/:30/:45; 30 at :00/:30; 60 only at :00. Clear happens immediately before stamping time.",
+    "fade_after_seconds": "Integer 0..86400 seconds a cell must remain continuously alive before dimming. 0 = start fading immediately. Death/rebirth and fresh clock stamps restart its age.",
+    "fade_duration_seconds": "Integer 1..86400 seconds to fade from full brightness to black, then remove the cell from the simulation. Total lifetime = fade_after_seconds + fade_duration_seconds.",
+    "color": "Hex RGB string #RRGGBB. Solid cell color when gradient is none; otherwise the gradient start color. Example #94e780 = light green. Overrides the cellular widget color picker.",
+    "gradient": "Allowed strings: none = solid; horizontal = left to right; vertical = top to bottom; both = average of horizontal and vertical position, a top-left to bottom-right diagonal.",
+    "gradient_end_color": "Hex RGB string #RRGGBB used at the far end of the gradient. Ignored when gradient is none. Example #44c6cb = cyan."
+  },
+  "update_ms": 500,
+  "time_hold_seconds": 5,
+  "clear_every_minutes": 30,
+  "fade_after_seconds": 60,
+  "fade_duration_seconds": 5,
+  "color": "#94e780",
+  "gradient": "vertical",
+  "gradient_end_color": "#44c6cb"
+}

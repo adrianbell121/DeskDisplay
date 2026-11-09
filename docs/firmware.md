@@ -119,14 +119,17 @@ USB device; use `--port COM4` before the command when multiple devices are prese
 
 ## On the board
 
-- Short press **BOOT**: saved Island face -> cellular automata -> saved Island face.
+- Short press **BOOT**: saved Island face -> cellular automata -> Diagnostics -> saved Island face.
   Without an uploaded scene, this uses the built-in Island. The game advances
   every 250 ms. Island-style time is stamped in the center on entry and each minute,
   replacing only that clock rectangle and holding the grid for five seconds.
   Quarter hours clear the grid before stamping. Continuously lit cells fade after
   30 seconds, then expire at 150 seconds. Shared timing, colors and gradient direction
-  are in `preview/cellular-automata-config.json`; rebuild/flash after editing.
-  USB `mode automata` opens the game; `mode next` runs the same toggle as BOOT.
+  are in `cellular-automata-config.json`; rebuild/flash after editing.
+  USB `mode automata` opens the game; `mode next` runs the same cycle as BOOT.
+  `mode diagnostics` opens IP/uptime/five-digit ZIP/live HH:MM:SS AM/PM. The ZIP
+  comes from the selected saved weather location, falling back to the default face.
+  Unknown ZIPs show -----; disconnected Wi-Fi shows OFFLINE.
 - Hold **BOOT** for one second: play the speaker test once.
 - **RST**: restart; defaults to Island at 25% brightness, or an uploaded custom scene.
 - `test`: an eight-second red/green/blue/gray test with asymmetric white corner

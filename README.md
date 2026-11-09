@@ -40,11 +40,13 @@ The local tools are already installed in this workspace. Use `Ctrl+Shift+B` to
 build, or **Terminal > Run Task** for flashing, monitoring, clock sync, and the
 speaker test. Close the serial monitor before another task uses the USB port.
 
-- Tap **BOOT** to switch between your saved Island face and cellular automata.
+- Tap **BOOT** to cycle through your saved Island face, cellular automata, and Diagnostics.
+  Diagnostics shows the Wi-Fi IP (or OFFLINE), uptime, saved weather location ZIP,
+  and live HH:MM:SS AM/PM. An unavailable ZIP displays -----; leading zeros are kept.
   Without a saved scene, the built-in Island face is used. The game advances every
   250 ms. Time holds for five seconds each minute; the grid clears every quarter
   hour. Old cells fade after 30 seconds and expire at 150 seconds. Timing and colors
-  are in `preview/cellular-automata-config.json` (rebuild/flash after editing).
+  are in `cellular-automata-config.json` (rebuild/flash after editing).
 - Hold **BOOT** for one second to play the speaker test.
 - Press **RST** to restart on Island at 25% brightness (a saved custom scene can take precedence).
 

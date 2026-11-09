@@ -7,6 +7,7 @@ ROOT=Path(__file__).resolve().parent.parent
 sys.path.insert(0,str(ROOT/'.tools/host-python/Lib/site-packages'))
 from device import connect,request,save_png
 OUT=ROOT/'artifacts/automata-button'
+CONFIG=json.loads((ROOT/'cellular-automata-config.json').read_text(encoding='utf-8'))
 
 def get(name):
     url=(ROOT/'data/board-dashboard.url').read_text().strip().rstrip('/')
@@ -82,7 +83,7 @@ def main():
             else:raise AssertionError('No centered clock stamp at the next minute')
             save_png(OUT/'minute-stamp.png',frame)
             candidate=cells(previous);target=outside(cells(frame))
-            if next_minute.minute%15==0:
+            if next_minute.minute%CONFIG['clear_every_minutes']==0:
                 assert not any(target),'Quarter-hour clear did not wipe outside cells'
                 candidate=cells(frame)
             for _ in range(5):
@@ -92,6 +93,8 @@ def main():
             time.sleep(3);assert has_clock(capture(link),expected),'Minute stamp did not hold for five seconds'
             time.sleep(2.3);assert capture(link)!=frame,'Minute stamp did not resume evolution'
             print('PASS: centered time on entry, natural minute stamp, surrounding cells retained, and evolution resumed.',flush=True)
+            assert 'MODE OK' in request(link,'mode next','MODE ')
+            assert 'mode=diagnostics' in request(link,'status','STATUS ')
             assert 'MODE OK' in request(link,'mode next','MODE ')
             assert 'mode=custom' in request(link,'status','STATUS ')
             time.sleep(.1);save_png(OUT/'restored-island.png',capture(link))
@@ -104,7 +107,7 @@ def main():
         print(status.strip())
     after=get('status');assert after['sceneCrc']==after['savedSceneCrc']==before['savedSceneCrc']
     assert get('workspace')==workspace
-    report={'generationMs':250,'timeHoldSeconds':5,'toggle':'saved Island <-> automata','centeredTimeOnEntry':True,'naturalMinuteStamp':next_minute.isoformat(),'outsideCellsPreserved':True,'evolutionResumed':True,'savedIslandCrc':after['savedSceneCrc'],'workspaceUnchanged':True,'islandRestoredAfterReboot':True}
+    report={'generationMs':CONFIG['update_ms'],'timeHoldSeconds':CONFIG['time_hold_seconds'],'cycle':'saved Island -> automata -> diagnostics -> saved Island','centeredTimeOnEntry':True,'naturalMinuteStamp':next_minute.isoformat(),'outsideCellsPreserved':True,'evolutionResumed':True,'savedIslandCrc':after['savedSceneCrc'],'workspaceUnchanged':True,'islandRestoredAfterReboot':True}
     (OUT/'verification.json').write_text(json.dumps(report,indent=2),encoding='utf-8')
     print('PASS:',json.dumps(report))
 

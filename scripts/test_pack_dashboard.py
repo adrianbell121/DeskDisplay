@@ -4,12 +4,12 @@ from pack_dashboard import pack,automata_config
 
 class DashboardBundleTests(unittest.TestCase):
  def test_automata_settings_reject_bad_timings_and_colors(self):
-  config=json.loads((Path(__file__).resolve().parent.parent/'preview/cellular-automata-config.json').read_text())
+  config=json.loads((Path(__file__).resolve().parent.parent/'cellular-automata-config.json').read_text())
   with tempfile.TemporaryDirectory() as folder:
    root=Path(folder)
    for change in [{'update_ms':0},{'time_hold_seconds':60},{'clear_every_minutes':7},{'fade_duration_seconds':0},{'color':'green'},{'gradient':'diagonal'}]:
     (root/'cellular-automata-config.json').write_text(json.dumps({**config,**change}))
-    with self.assertRaises(ValueError):automata_config(root)
+    with self.assertRaises(ValueError):automata_config(root/'preview')
  def test_board_page_has_all_dependencies_and_no_computer_actions(self):
   root=Path(__file__).resolve().parent.parent/'preview'
   with tempfile.TemporaryDirectory() as folder:

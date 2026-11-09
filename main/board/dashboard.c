@@ -2,6 +2,7 @@
 #include "dashboard_assets.h"
 #include "scene_store.h"
 #include "weather.h"
+#include "diagnostics_face.h"
 #include "esp_http_server.h"
 #include "esp_partition.h"
 #include "esp_netif.h"
@@ -34,10 +35,25 @@ static int64_t dirty_at;
 static bool scene_dirty;
 static esp_err_t save_error;
 static httpd_handle_t server;
+static char postal[6]="-----";
+static portMUX_TYPE postal_mux=portMUX_INITIALIZER_UNLOCKED;
+void dashboard_postal(char out[6]){portENTER_CRITICAL(&postal_mux);memcpy(out,postal,6);portEXIT_CRITICAL(&postal_mux);}
+static void update_postal(cJSON *root){
+ cJSON *state=cJSON_GetObjectItemCaseSensitive(root,"state"),*faces=cJSON_GetObjectItemCaseSensitive(state,"faces");
+ cJSON *selected=cJSON_GetObjectItemCaseSensitive(state,"selected"),*fallback=cJSON_GetObjectItemCaseSensitive(state,"defaultFaceId");char out[6]="-----";
+ for(int pass=0;pass<2;pass++){cJSON *id=pass?fallback:selected,*face;if(!cJSON_IsString(id))continue;
+  cJSON_ArrayForEach(face,faces){cJSON *fid=cJSON_GetObjectItemCaseSensitive(face,"id");if(!cJSON_IsString(fid)||strcmp(fid->valuestring,id->valuestring))continue;
+   cJSON *location=cJSON_GetObjectItemCaseSensitive(cJSON_GetObjectItemCaseSensitive(face,"weather"),"location");
+   if(cJSON_IsString(location))diagnostics_postal(location->valuestring,out);
+  }if(strcmp(out,"-----"))break;
+ }
+ portENTER_CRITICAL(&postal_mux);memcpy(postal,out,6);portEXIT_CRITICAL(&postal_mux);
+}
 static esp_err_t opened(httpd_handle_t handle,int fd){int enabled=1;return setsockopt(fd,IPPROTO_TCP,TCP_NODELAY,&enabled,sizeof(enabled))==0?ESP_OK:ESP_FAIL;}
 static void *json_alloc(size_t size){return heap_caps_malloc(size,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);}
 static uint32_t crc32(const void *ptr,size_t size){const uint8_t *p=ptr;uint32_t crc=0xffffffff;for(size_t i=0;i<size;i++){crc^=p[i];for(int j=0;j<8;j++)crc=(crc>>1)^(0xedb88320U&-(crc&1U));}return ~crc;}
 static void address(char *out,size_t size){esp_netif_ip_info_t ip={0};esp_netif_t *net=esp_netif_get_handle_from_ifkey("WIFI_STA_DEF");if(net)esp_netif_get_ip_info(net,&ip);snprintf(out,size,IPSTR,IP2STR(&ip.ip));}
+void dashboard_address(char *out,size_t size){address(out,size);}
 static bool host_ok(httpd_req_t *req){char host[80],ip[32],with_port[40];address(ip,sizeof(ip));snprintf(with_port,sizeof(with_port),"%s:80",ip);return httpd_req_get_hdr_value_str(req,"Host",host,sizeof(host))==ESP_OK&&(!strcmp(host,ip)||!strcmp(host,with_port));}
 static bool write_ok(httpd_req_t *req){char origin[100],wanted[100],host[80],tag[8];if(!host_ok(req)||httpd_req_get_hdr_value_str(req,"Host",host,sizeof(host))!=ESP_OK)return false;snprintf(wanted,sizeof(wanted),"http://%s",host);return httpd_req_get_hdr_value_str(req,"Origin",origin,sizeof(origin))==ESP_OK&&!strcmp(origin,wanted)&&httpd_req_get_hdr_value_str(req,"X-Face-Lab",tag,sizeof(tag))==ESP_OK&&!strcmp(tag,"1");}
 static esp_err_t json_reply(httpd_req_t *req,const char *json){httpd_resp_set_type(req,"application/json");httpd_resp_set_hdr(req,"Cache-Control","no-store");httpd_resp_set_hdr(req,"X-Content-Type-Options","nosniff");size_t length=strlen(json);for(size_t at=0;at<length;at+=1024){size_t n=length-at;if(n>1024)n=1024;if(httpd_resp_send_chunk(req,json+at,n)!=ESP_OK)return ESP_FAIL;}return httpd_resp_send_chunk(req,NULL,0);}
@@ -94,8 +110,9 @@ static esp_err_t post(httpd_req_t *req){
  if(!valid_state(state)||!cJSON_IsNumber(rev)){cJSON_Delete(root);return error(req,"400 Bad Request","{\"error\":\"Invalid workspace\"}");}
  xSemaphoreTake(mutex,portMAX_DELAY);
  if(rev->valuedouble!=revision){xSemaphoreGive(mutex);cJSON_Delete(root);return error(req,"409 Conflict","{\"error\":\"Another browser saved changes. Reload before editing.\"}");}
- cJSON *envelope=cJSON_CreateObject();cJSON_AddNumberToObject(envelope,"revision",revision+1);cJSON_AddNumberToObject(envelope,"savedAt",time(NULL));cJSON_AddItemToObject(envelope,"state",cJSON_DetachItemFromObjectCaseSensitive(root,"state"));char *raw=cJSON_PrintUnformatted(envelope);cJSON_Delete(envelope);cJSON_Delete(root);
- if(!raw||strlen(raw)>WORKSPACE_LIMIT){free(raw);xSemaphoreGive(mutex);return error(req,"413 Content Too Large","{\"error\":\"Clock library limit is 1 MB. Export a backup and remove unused variations.\"}");}
+ cJSON *envelope=cJSON_CreateObject();cJSON_AddNumberToObject(envelope,"revision",revision+1);cJSON_AddNumberToObject(envelope,"savedAt",time(NULL));cJSON_AddItemToObject(envelope,"state",cJSON_DetachItemFromObjectCaseSensitive(root,"state"));char *raw=cJSON_PrintUnformatted(envelope);
+ if(!raw||strlen(raw)>WORKSPACE_LIMIT){cJSON_Delete(envelope);cJSON_Delete(root);free(raw);xSemaphoreGive(mutex);return error(req,"413 Content Too Large","{\"error\":\"Clock library limit is 1 MB. Export a backup and remove unused variations.\"}");}
+ update_postal(envelope);cJSON_Delete(envelope);cJSON_Delete(root);
  free(workspace);workspace=raw;workspace_size=strlen(raw);revision++;dirty_at=esp_timer_get_time();save_error=ESP_OK;
  char response[64];snprintf(response,sizeof(response),"{\"revision\":%u}",(unsigned)revision);xSemaphoreGive(mutex);return json_reply(req,response);
 }
@@ -105,7 +122,7 @@ esp_err_t dashboard_init(void){
  partition=esp_partition_find_first(ESP_PARTITION_TYPE_DATA,ESP_PARTITION_SUBTYPE_ANY,"workspace");if(!partition||partition->size<2*SLOT_SIZE)return ESP_ERR_NOT_FOUND;
  for(int i=0;i<2;i++){record_t h;if(esp_partition_read(partition,i*SLOT_SIZE,&h,sizeof(h))!=ESP_OK||h.magic!=MAGIC||h.size<1||h.size>WORKSPACE_LIMIT||h.revision<=revision)continue;
   char *candidate=heap_caps_malloc(h.size+1,MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT);if(!candidate)continue;
-  if(esp_partition_read(partition,i*SLOT_SIZE+sizeof(h),candidate,h.size)==ESP_OK&&crc32(candidate,h.size)==h.crc){candidate[h.size]=0;cJSON *root=cJSON_ParseWithLength(candidate,h.size+1);bool valid=valid_state(cJSON_GetObjectItemCaseSensitive(root,"state"));cJSON *r=cJSON_GetObjectItemCaseSensitive(root,"revision");valid=valid&&cJSON_IsNumber(r)&&r->valuedouble==h.revision;cJSON_Delete(root);if(valid){free(workspace);workspace=candidate;workspace_size=h.size;revision=saved_revision=h.revision;slot=i;continue;}}
+  if(esp_partition_read(partition,i*SLOT_SIZE+sizeof(h),candidate,h.size)==ESP_OK&&crc32(candidate,h.size)==h.crc){candidate[h.size]=0;cJSON *root=cJSON_ParseWithLength(candidate,h.size+1);bool valid=valid_state(cJSON_GetObjectItemCaseSensitive(root,"state"));cJSON *r=cJSON_GetObjectItemCaseSensitive(root,"revision");valid=valid&&cJSON_IsNumber(r)&&r->valuedouble==h.revision;if(valid)update_postal(root);cJSON_Delete(root);if(valid){free(workspace);workspace=candidate;workspace_size=h.size;revision=saved_revision=h.revision;slot=i;continue;}}
   free(candidate);
  }
  // Flash operations disable the PSRAM cache; their task stack must be internal.
