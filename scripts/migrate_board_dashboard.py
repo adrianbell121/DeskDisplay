@@ -33,7 +33,11 @@ def main():
  if not matches:raise SystemExit('Could not match the board’s active face to the desktop library. No designs were changed.')
  index=next((i for i in matches if state['faces'][i]['id']==state['selected']),matches[0]);state['selected']=state['faces'][index]['id']
  revision=request(url,'/api/workspace',{'revision':remote['revision'],'state':state})['revision']
- package=(packs/(str(index)+'.fls')).read_bytes();request(url,'/api/scene',package,True)
+ package=(packs/(str(index)+'.fls')).read_bytes();menu=request(url,'/api/faces')
+ item={'id':state['faces'][index]['id'],'name':state['faces'][index]['name'],'mode':'custom','scene':package.hex()}
+ menu['items'][0]=item
+ request(url,'/api/faces',{'revision':menu['revision'],'items':menu['items']})
+ request(url,'/api/faces/select',{'id':item['id']})
  deadline=time.monotonic()+30
  while time.monotonic()<deadline:
   status=request(url,'/api/status')

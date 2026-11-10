@@ -14,8 +14,8 @@ VS Code. Hardware references are in `docs/hardware/`.
   The PCM signal is also attenuated. `sound 0..85` adjusts the test volume.
 - PCF85063 RTC stores UTC; display uses America/New_York rules with daylight saving.
 - USB commands and a live framebuffer capture for troubleshooting.
-- Starts on Island at 25% panel brightness (an explicitly saved custom scene can
-  still take precedence). Brightness resets on reboot.
+- Starts on the first saved BOOT menu entry at 25% panel brightness.
+  Brightness resets on reboot.
 - Wi-Fi/SNTP acquires internet time on connection and every 3,600 seconds, with
   reconnect attempts after network loss. Successful syncs update the UTC RTC.
 
@@ -119,7 +119,11 @@ USB device; use `--port COM4` before the command when multiple devices are prese
 
 ## On the board
 
-- Short press **BOOT**: saved Island face -> cellular automata -> Diagnostics -> saved Island face.
+- Short press **BOOT**: advance through the saved face menu. Add/update edited
+  faces, remove entries, and drag to reorder them in the board dashboard's
+  **BOOT button menu**. Changes persist immediately. Removing an entry keeps its
+  editable library design. The initial order is saved Island, cellular automata,
+  then Diagnostics; firmware upgrades preserve the previous saved scene.
   Without an uploaded scene, this uses the built-in Island. The game advances
   every 250 ms. Island-style time animates on a separate overlay: reverse Life frames lead
   into the next minute, then the clean clock holds for five seconds. Its live cells
@@ -132,7 +136,7 @@ USB device; use `--port COM4` before the command when multiple devices are prese
   comes from the selected saved weather location, falling back to the default face.
   Unknown ZIPs show -----; disconnected Wi-Fi shows OFFLINE.
 - Hold **BOOT** for one second: play the speaker test once.
-- **RST**: restart; defaults to Island at 25% brightness, or an uploaded custom scene.
+- **RST**: restart on the first saved menu entry at 25% brightness.
 - `test`: an eight-second red/green/blue/gray test with asymmetric white corner
   marks, then returns to the clock. This checks channel order, row addressing,
   orientation, and clipping.

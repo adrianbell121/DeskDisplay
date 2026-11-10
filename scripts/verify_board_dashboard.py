@@ -26,6 +26,7 @@ def main():
  code="""const fs=require('fs'),S=require('./preview/scene.js'),f=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));fs.writeFileSync(process.argv[2]+'/original.fls',S.compile(f));const d=f.widgets.find(w=>w.type==='island'&&w.islandPart===1);d.color=d.secondary='#ff0000';fs.writeFileSync(process.argv[2]+'/temporary.fls',S.compile(f));"""
  subprocess.run(['node','-e',code,str(out/'verify-face.json'),str(out)],cwd=ROOT,check=True)
  original=(out/'original.fls').read_bytes();changed=(out/'temporary.fls').read_bytes();date=next(w for w in face['widgets'] if w.get('islandPart')==1)
+ menu=request(url,'/api/faces');assert menu['items'][0].get('scene')==original.hex(),'Open and publish the first menu face before running this check'
  with connect('COM4') as link:
   try:
    start=time.monotonic();request(url,'/api/scene',changed,True);elapsed=time.monotonic()-start;time.sleep(.1)
@@ -33,7 +34,7 @@ def main():
    rows=re.findall(r'(?m)^([0-9a-f]{256})\r?$',usb(link,'capture','FRAME END',timeout=12));assert len(rows)==64
    frame=[int(row[i:i+4],16) for row in rows for i in range(0,256,4)];assert any(frame[y*64+x]==0xf800 for y in range(date['y'],date['y']+date['h']) for x in range(64))
    save_png(out/'live-edit-test.png',rows,scale=6);report['liveApplySeconds']=round(elapsed,3)
-  finally:request(url,'/api/scene',original,True)
+  finally:request(url,'/api/faces/select',{'id':menu['items'][0]['id']})
   deadline=time.monotonic()+20
   while time.monotonic()<deadline:
    status=request(url,'/api/status')
@@ -50,6 +51,7 @@ def main():
   time.sleep(1)
  else:raise AssertionError('Saved library or active face did not survive reboot')
  report.update(restartPersistence=True,originChecks=True,invalidEditChecks=True,status=status)
+ assert request(url,'/api/faces')['items']==menu['items'],'Live preview changed the published menu'
  (out/'verification.json').write_text(json.dumps(report,indent=2),encoding='utf-8');print('PASS:',json.dumps(report))
 
 if __name__=='__main__':main()

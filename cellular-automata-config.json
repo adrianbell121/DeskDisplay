@@ -17,7 +17,7 @@
   "fade_after_seconds": 60,
   "fade_duration_seconds": 5,
   "color": "#94e780",
-  "gradient": "vertical",
+  "gradient": "both",
   "gradient_end_color": "#44c6cb",
-  "time_reverse_frames": 20
+  "time_reverse_frames": 4
 }

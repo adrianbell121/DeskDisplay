@@ -8,6 +8,7 @@
 bool scene_player_validate(const uint8_t *data, size_t size);
 bool scene_player_set(const uint8_t *data, size_t size, int64_t now_ms);
 bool scene_player_ready(void);
+void scene_player_clear(void);
 void scene_player_reset_automata(void);
 bool scene_player_set_live(const uint8_t *data,size_t size,int64_t now_ms);
 void scene_player_render(uint16_t *pixels, const struct tm *time, bool valid, int64_t now_ms, int64_t frame_wall_us);

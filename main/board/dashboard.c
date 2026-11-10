@@ -1,6 +1,7 @@
 #include "dashboard.h"
 #include "dashboard_assets.h"
 #include "scene_store.h"
+#include "face_menu.h"
 #include "weather.h"
 #include "diagnostics_face.h"
 #include "esp_http_server.h"
@@ -13,6 +14,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/semphr.h"
+#include "freertos/queue.h"
 #include "freertos/idf_additions.h"
 #include "cJSON.h"
 #include <stdio.h>
@@ -35,6 +37,8 @@ static int64_t dirty_at;
 static bool scene_dirty;
 static esp_err_t save_error;
 static httpd_handle_t server;
+typedef struct {const char *json;size_t size;esp_err_t result;SemaphoreHandle_t done;} menu_job_t;
+static QueueHandle_t menu_jobs;
 static char postal[6]="-----";
 static portMUX_TYPE postal_mux=portMUX_INITIALIZER_UNLOCKED;
 void dashboard_postal(char out[6]){portENTER_CRITICAL(&postal_mux);memcpy(out,postal,6);portEXIT_CRITICAL(&postal_mux);}
@@ -76,7 +80,10 @@ static esp_err_t save_workspace(void){
  if(err==ESP_OK){slot=next;saved_revision=revision;}return err;
 }
 static void saver(void *arg){
- for(;;){vTaskDelay(pdMS_TO_TICKS(250));xSemaphoreTake(mutex,portMAX_DELAY);
+ for(;;){
+  menu_job_t *job;
+  if(xQueueReceive(menu_jobs,&job,pdMS_TO_TICKS(250))==pdTRUE){job->result=scene_store_faces_update(job->json,job->size);xSemaphoreGive(job->done);}
+  xSemaphoreTake(mutex,portMAX_DELAY);
   if(dirty_at&&esp_timer_get_time()-dirty_at>=2000000){
    save_error=save_workspace();if(save_error==ESP_OK&&scene_dirty)save_error=scene_store_save_live();
    if(save_error==ESP_OK){dirty_at=0;scene_dirty=false;}else dirty_at=esp_timer_get_time();
@@ -84,12 +91,18 @@ static void saver(void *arg){
   xSemaphoreGive(mutex);
  }
 }
+static esp_err_t save_menu(const char *json,size_t size){
+ menu_job_t job={.json=json,.size=size,.done=xSemaphoreCreateBinary()},*pointer=&job;
+ if(!job.done)return ESP_ERR_NO_MEM;
+ xQueueSend(menu_jobs,&pointer,portMAX_DELAY);xSemaphoreTake(job.done,portMAX_DELAY);vSemaphoreDelete(job.done);return job.result;
+}
 static esp_err_t get(httpd_req_t *req){
  if(!host_ok(req))return error(req,"403 Forbidden","{\"error\":\"Use the clock's own network address\"}");
- if(!strcmp(req->uri,"/api/capabilities"))return json_reply(req,"{\"ai\":false,\"sceneVersion\":2,\"boardHosted\":true,\"workspaceLimit\":1048576}");
+ if(!strcmp(req->uri,"/api/capabilities"))return json_reply(req,"{\"ai\":false,\"sceneVersion\":2,\"boardHosted\":true,\"faceMenuVersion\":1,\"workspaceLimit\":1048576}");
+ if(!strcmp(req->uri,"/api/faces")){char *json=scene_store_faces_json();if(!json)return error(req,"503 Service Unavailable","{\"error\":\"Face menu is unavailable\"}");esp_err_t err=json_reply(req,json);free(json);return err;}
  if(!strcmp(req->uri,"/api/workspace")){xSemaphoreTake(mutex,portMAX_DELAY);esp_err_t err=json_reply(req,workspace?workspace:"{\"revision\":0,\"state\":null}");xSemaphoreGive(mutex);return err;}
  if(!strcmp(req->uri,"/api/status")){
-  xSemaphoreTake(mutex,portMAX_DELAY);uint32_t live,saved;scene_store_crc(&live,&saved);char json[240];snprintf(json,sizeof(json),"{\"revision\":%u,\"savedRevision\":%u,\"sceneCrc\":%u,\"savedSceneCrc\":%u,\"pending\":%s,\"saveError\":%d}",(unsigned)revision,(unsigned)saved_revision,(unsigned)live,(unsigned)saved,dirty_at?"true":"false",save_error);xSemaphoreGive(mutex);return json_reply(req,json);
+  xSemaphoreTake(mutex,portMAX_DELAY);uint32_t live,saved,menu_revision;int menu_index;scene_store_crc(&live,&saved);scene_store_faces_state(&menu_revision,&menu_index);char json[320];snprintf(json,sizeof(json),"{\"revision\":%u,\"savedRevision\":%u,\"sceneCrc\":%u,\"savedSceneCrc\":%u,\"pending\":%s,\"saveError\":%d,\"faceMenuRevision\":%u,\"faceMenuIndex\":%d}",(unsigned)revision,(unsigned)saved_revision,(unsigned)live,(unsigned)saved,dirty_at?"true":"false",save_error,(unsigned)menu_revision,menu_index);xSemaphoreGive(mutex);return json_reply(req,json);
  }
  if(!strncmp(req->uri,"/api/weather/current",20)){char *json=board_weather_json();if(!json)return error(req,"503 Service Unavailable","{\"error\":\"Waiting for current weather\"}");esp_err_t err=json_reply(req,json);free(json);return err;}
  if(!strncmp(req->uri,"/api/",5))return error(req,"404 Not Found","{\"error\":\"Unknown route\"}");
@@ -102,9 +115,19 @@ static esp_err_t get(httpd_req_t *req){
 }
 static esp_err_t post(httpd_req_t *req){
  if(!write_ok(req))return error(req,"403 Forbidden","{\"error\":\"Open this clock's dashboard to make changes\"}");
- bool is_scene=!strcmp(req->uri,"/api/scene"),is_workspace=!strcmp(req->uri,"/api/workspace");
- if(!is_scene&&!is_workspace)return error(req,"404 Not Found","{\"error\":\"Unknown route\"}");
- char *p=body(req,is_scene?262144:WORKSPACE_LIMIT);if(!p)return error(req,"400 Bad Request","{\"error\":\"Invalid body or size limit exceeded\"}");
+ bool is_scene=!strcmp(req->uri,"/api/scene"),is_workspace=!strcmp(req->uri,"/api/workspace"),is_faces=!strcmp(req->uri,"/api/faces"),is_select=!strcmp(req->uri,"/api/faces/select");
+ if(!is_scene&&!is_workspace&&!is_faces&&!is_select)return error(req,"404 Not Found","{\"error\":\"Unknown route\"}");
+ char *p=body(req,is_scene?262144:is_faces?FACE_MENU_MAX_BYTES*2+32768:is_select?1024:WORKSPACE_LIMIT);if(!p)return error(req,"400 Bad Request","{\"error\":\"Invalid body or size limit exceeded\"}");
+ if(is_faces||is_select){
+  esp_err_t err;
+  if(is_faces)err=save_menu(p,req->content_len+1);
+  else{cJSON *root=cJSON_ParseWithLength(p,req->content_len+1),*id=cJSON_GetObjectItemCaseSensitive(root,"id");err=cJSON_IsString(id)?scene_store_faces_select(id->valuestring):ESP_ERR_INVALID_ARG;cJSON_Delete(root);}
+  free(p);
+  if(err==ESP_ERR_INVALID_STATE)return error(req,"409 Conflict","{\"error\":\"Face menu changed in another browser. Reload the menu and retry.\"}");
+  if(err==ESP_ERR_INVALID_ARG||err==ESP_ERR_INVALID_SIZE||err==ESP_ERR_NOT_FOUND)return error(req,"400 Bad Request","{\"error\":\"Invalid face menu, missing face, or menu capacity exceeded. Keep 1–32 faces.\"}");
+  if(err!=ESP_OK)return error(req,"503 Service Unavailable","{\"error\":\"Could not save or show the face menu. The previous menu was kept.\"}");
+  uint32_t revision;int index;scene_store_faces_state(&revision,&index);char json[96];snprintf(json,sizeof(json),"{\"revision\":%u,\"activeIndex\":%d}",(unsigned)revision,index);return json_reply(req,json);
+ }
  if(is_scene){esp_err_t result=scene_store_live((const uint8_t *)p,req->content_len);free(p);if(result!=ESP_OK)return error(req,"400 Bad Request","{\"error\":\"Invalid scene or display busy\"}");xSemaphoreTake(mutex,portMAX_DELAY);scene_dirty=true;dirty_at=esp_timer_get_time();xSemaphoreGive(mutex);return json_reply(req,"{\"live\":true}");}
  cJSON *root=cJSON_ParseWithLength(p,req->content_len+1);free(p);cJSON *state=cJSON_GetObjectItemCaseSensitive(root,"state"),*rev=cJSON_GetObjectItemCaseSensitive(root,"revision");
  if(!valid_state(state)||!cJSON_IsNumber(rev)){cJSON_Delete(root);return error(req,"400 Bad Request","{\"error\":\"Invalid workspace\"}");}
@@ -125,6 +148,7 @@ esp_err_t dashboard_init(void){
   if(esp_partition_read(partition,i*SLOT_SIZE+sizeof(h),candidate,h.size)==ESP_OK&&crc32(candidate,h.size)==h.crc){candidate[h.size]=0;cJSON *root=cJSON_ParseWithLength(candidate,h.size+1);bool valid=valid_state(cJSON_GetObjectItemCaseSensitive(root,"state"));cJSON *r=cJSON_GetObjectItemCaseSensitive(root,"revision");valid=valid&&cJSON_IsNumber(r)&&r->valuedouble==h.revision;if(valid)update_postal(root);cJSON_Delete(root);if(valid){free(workspace);workspace=candidate;workspace_size=h.size;revision=saved_revision=h.revision;slot=i;continue;}}
   free(candidate);
  }
+ menu_jobs=xQueueCreate(1,sizeof(menu_job_t *));if(!menu_jobs)return ESP_ERR_NO_MEM;
  // Flash operations disable the PSRAM cache; their task stack must be internal.
  if(xTaskCreatePinnedToCore(saver,"dashboard-save",4096,NULL,1,NULL,1)!=pdPASS)return ESP_ERR_NO_MEM;
  httpd_config_t cfg=HTTPD_DEFAULT_CONFIG();cfg.stack_size=8192;cfg.task_caps=MALLOC_CAP_SPIRAM|MALLOC_CAP_8BIT;cfg.core_id=1;cfg.max_uri_handlers=4;cfg.max_open_sockets=3;cfg.lru_purge_enable=true;cfg.uri_match_fn=httpd_uri_match_wildcard;cfg.recv_wait_timeout=10;cfg.send_wait_timeout=10;cfg.open_fn=opened;

@@ -78,6 +78,7 @@ bool scene_player_set(const uint8_t *data, size_t size, int64_t now_ms)
     return true;
 }
 bool scene_player_ready(void) { return ready; }
+void scene_player_clear(void){ready=false;count=0;scene_player_reset_automata();board_weather_configure(0,0,false);}
 bool scene_player_set_live(const uint8_t *data,size_t size,int64_t now_ms)
 {
     bool was_ready=ready;int64_t previous=started;

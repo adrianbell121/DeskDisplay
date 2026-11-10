@@ -8,6 +8,7 @@
 #include "board.h"
 #include "island_face.h"
 #include "scene_player.h"
+#include "scene_store.h"
 #include "cellular_automata.h"
 #include "desk_ui.h"
 #include "dashboard.h"
@@ -154,6 +155,7 @@ bool desk_ui_mode(const char *name)
 }
 void desk_ui_next(void)
 {
+    if(scene_store_faces_next())return;
     desk_ui_mode(mode==AUTOMATA?"diagnostics":mode==DIAGNOSTICS?(scene_player_ready()?"custom":"island"):"automata");
 }
 void desk_ui_custom_changed(void) { mode = CUSTOM; last_second = -1; }

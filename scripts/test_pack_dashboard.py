@@ -20,6 +20,8 @@ class DashboardBundleTests(unittest.TestCase):
    self.assertNotIn('id="ai-open"',page);self.assertNotIn('id="ai-dialog"',page);self.assertNotIn('id="deploy-open"',page)
    self.assertIn('window.BoardEditorBoot=',page);self.assertIn('id="export"',page);self.assertIn('id="widget-import"',page)
    self.assertIn('root.CellularAutomata=api',page)
+   self.assertIn('board-face-menu-title',page)
+   self.assertNotIn('board-face-menu.js',(root/'index.html').read_text())
    self.assertNotRegex(page,r'<script[^>]+src=');self.assertNotIn('rel="stylesheet"',page)
    for dependency in re.findall(r'(?:src|href)="([^"?]+\.(?:js|css))"',page):self.assertIn(dependency,assets)
    self.assertNotIn('wifi.local.json',source);self.assertNotIn('workspace.json',source)

@@ -40,7 +40,12 @@ The local tools are already installed in this workspace. Use `Ctrl+Shift+B` to
 build, or **Terminal > Run Task** for flashing, monitoring, clock sync, and the
 speaker test. Close the serial monitor before another task uses the USB port.
 
-- Tap **BOOT** to cycle through your saved Island face, cellular automata, and Diagnostics.
+- In the board's Wi-Fi dashboard, use **BOOT button menu** to add or update the
+  face you are editing, remove entries, or drag them into order. Removing an entry
+  keeps its editable design in the library. **Show** displays a saved entry.
+  Editor previews are temporary until you choose **Add** or **Update** in this menu.
+- Tap **BOOT** to cycle through that saved menu. Its initial order is your saved
+  Island face, cellular automata, and Diagnostics.
   Diagnostics shows the Wi-Fi IP (or OFFLINE), uptime, saved weather location ZIP,
   and live HH:MM:SS AM/PM. An unavailable ZIP displays -----; leading zeros are kept.
   Without a saved scene, the built-in Island face is used. The game advances every
@@ -49,7 +54,7 @@ speaker test. Close the serial monitor before another task uses the USB port.
   hour. Old cells fade after 30 seconds and expire at 150 seconds. Timing and colors
   are in `cellular-automata-config.json` (rebuild/flash after editing).
 - Hold **BOOT** for one second to play the speaker test.
-- Press **RST** to restart on Island at 25% brightness (a saved custom scene can take precedence).
+- Press **RST** to restart on the first saved menu face at 25% brightness.
 
 ## Project layout
 

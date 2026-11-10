@@ -4,10 +4,10 @@ const Store=window.FaceStudioState,S=window.FaceScene,W=window.SceneWeather;
 const banner=document.createElement('div');banner.id='clock-connection';banner.setAttribute('role','status');banner.style='padding:12px 28px;background:#17392c;color:#c9f2d9';banner.textContent='Connecting to this clock…';document.querySelector('.masthead').after(banner);
 const key='deskdisplay.board-workspace.v1';
 let revision=0,state=null,pending=null,saveTimer=null,saving=false,blocked=false;
-let liveFace=null,liveTimer=null,liveBusy=false,lastScene='',liveError='',workspaceError='';
+let liveFace=null,liveTimer=null,liveBusy=false,lastScene='',liveError='',workspaceError='',menuBusy=false,previewActive=false;
 const status=text=>{const el=document.getElementById('save-status');if(el)el.textContent=text;};
 async function get(path){const r=await fetch(path,{cache:'no-store'}),data=await r.json();if(!r.ok)throw new Error(data.error||'Clock unavailable');return data;}
-async function post(path,body,binary=false){const r=await fetch(path,{method:'POST',headers:{'Content-Type':binary?'application/octet-stream':'application/json','X-Face-Lab':'1'},body:binary?body:JSON.stringify(body)});const data=await r.json();if(!r.ok){if(r.status===409&&!binary)blocked=true;throw new Error(data.error||'Clock rejected the change');}return data;}
+async function post(path,body,binary=false){const r=await fetch(path,{method:'POST',headers:{'Content-Type':binary?'application/octet-stream':'application/json','X-Face-Lab':'1'},body:binary?body:JSON.stringify(body)});const data=await r.json();if(!r.ok){if(r.status===409&&path==='/api/workspace')blocked=true;throw new Error(data.error||'Clock rejected the change');}return data;}
 function describe(text){banner.textContent=liveError?'Preview only: '+liveError:workspaceError||text;status(banner.textContent);banner.style.background=liveError||workspaceError?'#533820':'#17392c';}
 async function flush(){
  if(saving||blocked||!pending)return;
@@ -26,10 +26,10 @@ async function sendLive(){
  }catch(error){liveError=error.message+' The last valid face stays on the clock.';describe('');}
  finally{liveBusy=false;if(liveFace&&!liveTimer)liveTimer=setTimeout(sendLive,60);}
 }
-function live(value){if(blocked)return;const f=value.faces.find(f=>f.id===value.selected);if(!f)return;liveFace=S.clone(f);if(!liveTimer&&!liveBusy)liveTimer=setTimeout(sendLive,60);}
+function live(value){if(blocked||menuBusy||(!previewActive&&JSON.stringify(value)===JSON.stringify(state)))return;const f=value.faces.find(f=>f.id===value.selected);if(!f)return;previewActive=true;liveFace=S.clone(f);if(!liveTimer&&!liveBusy)liveTimer=setTimeout(sendLive,60);}
 function save(value){
- live(value);
  if(!pending&&!saving&&JSON.stringify(value)===JSON.stringify(state))return;
+ live(value);
  pending=JSON.parse(JSON.stringify(value));try{localStorage.setItem(key,JSON.stringify(pending));}catch{}
  clearTimeout(saveTimer);saveTimer=setTimeout(flush,200);describe('Live editing · saving library…');
 }
@@ -47,13 +47,14 @@ try{
  const shared=await get('/api/workspace');revision=shared.revision;state=shared.state;
  if(!state){state=Store.fresh();revision=(await post('/api/workspace',{revision,state})).revision;}
  state=Store.clean(state);
- window.BoardWorkspace={live,getWeather};
+ window.BoardWorkspace={live,getWeather,get,post,resetPreview(){lastScene='';previewActive=false;},async beginMenu(){menuBusy=true;clearTimeout(liveTimer);liveTimer=null;liveFace=null;const deadline=Date.now()+5000;while(liveBusy){if(Date.now()>deadline)throw new Error('A live preview is still sending. Retry after it finishes.');await new Promise(resolve=>setTimeout(resolve,20));}},endMenu(){menuBusy=false;lastScene='';previewActive=false;}};
  window.SharedWorkspace={get state(){return state;},save};
  for(const boot of window.BoardEditorBoot)boot();
  const sampleClock=document.querySelector('#clock-mode option[value=live]');if(sampleClock)sampleClock.textContent='Current time';
  setInterval(async()=>{
   try{
    const info=await get('/api/status');
+   await window.BoardFaceMenu?.sync(info);
    if(info.saveError)throw new Error('Clock storage could not save. Export a backup before closing.');
    if(!pending&&!blocked)workspaceError='';
    if(!pending&&!saving&&info.revision!==revision){

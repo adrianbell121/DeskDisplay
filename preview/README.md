@@ -390,8 +390,10 @@ The board page omits Ask AI and USB deployment controls. Import/export, the
 sprite editor, animation previews, library and scene-weather controls remain.
 
 Position, size, color and supported animation edits apply to the running display
-over HTTP, including throttled updates while dragging. Changes save to flash
-after two seconds of inactivity. The banner distinguishes live edits, saving,
+over HTTP, including throttled updates while dragging. Editable library changes
+save to flash after two seconds of inactivity. Use Add/Update in the board-only
+BOOT button menu to publish the playback version; editor previews are temporary.
+See [the face menu guide](../docs/face-menu.md) for ordering and removing faces. The banner distinguishes live edits, saving,
 completed saves and unsupported scene settings. Unsupported settings remain in
 the editable library; the last valid face stays on the display. Existing scene
 compilation limits still apply (including custom live date formats and unbaked
