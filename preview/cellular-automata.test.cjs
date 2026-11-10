@@ -1,10 +1,43 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const C=require('./cellular-automata.js'),S=require('./scene.js'),Store=require('./studio-state.js');
 const I=require('./island-assets.js');
-const standard={...require('../cellular-automata-config.json'),time_reverse_frames:8,update_ms:500,clear_every_minutes:15,time_hold_seconds:5,fade_after_seconds:30,fade_duration_seconds:120};
+const standard={...require('../cellular-automata-config.json'),time_reverse_frames:8,update_ms:500,clear_every_minutes:15,time_hold_seconds:5,fade_after_seconds:30,fade_duration_seconds:120,switch_engine_spawn_seconds:0};
 C.configure(standard);
 function pattern(points){const s=C.create();for(const [x,y]of points)s.cells[y*64+x]=1;return s;}
 const glider=()=>pattern([[2,1],[3,2],[1,3],[2,3],[3,3]]);
+
+test('Corderman switch engine has eight cells, eight orientations, wraps, and preserves existing life',()=>{
+  const points=[[1,0],[3,0],[0,1],[1,2],[4,2],[3,3],[4,3],[5,3]],shapes=new Set();
+  const canonical=C.create();C.spawnSwitchEngine(canonical,10,10,0,5);
+  assert.deepEqual(canonical.cells,pattern(points.map(([x,y])=>[x+10,y+10])).cells);
+  for(let orientation=0;orientation<8;orientation++){
+    const s=C.create();C.spawnSwitchEngine(s,0,0,orientation,5);
+    assert.equal(s.cells.reduce((a,b)=>a+b),8);shapes.add(s.cells.join(''));
+    for(let i=0;i<4096;i++)assert.equal(s.born[i],s.cells[i]?6:0);
+  }
+  assert.equal(shapes.size,8);
+  const edge=C.create();C.spawnSwitchEngine(edge,63,63,0,5);assert.equal(edge.cells[63*64],1);assert.equal(edge.cells[63],1);
+  const s=C.create();s.cells[0]=1;s.born[0]=2;s.cells[10*64+11]=1;s.born[10*64+11]=3;
+  C.spawnSwitchEngine(s,10,10,0,20);assert.equal(s.cells.reduce((a,b)=>a+b),9);assert.equal(s.born[0],2);assert.equal(s.born[10*64+11],3);
+  const moving=C.create();C.spawnSwitchEngine(moving,32,32,0,0);for(let i=0;i<96;i++)C.step(moving);
+  assert.ok(points.every(([x,y])=>moving.cells[(24+y)*64+24+x]),'Core travels eight cells diagonally in 96 generations');
+});
+
+test('spawns follow the configured interval during the clock overlay and zero disables them',()=>{
+  const random=Math.random,date=new Date(2026,10,9,12,34,10);
+  try{
+    C.configure({...standard,switch_engine_spawn_seconds:15});Math.random=()=>0;
+    const s=C.create();C.advance(s,100,date);C.advance(s,114.999,new Date(date.getTime()+14999));assert.equal(s.spawnedAt,100);
+    C.advance(s,115,new Date(date.getTime()+15000));assert.equal(s.spawnedAt,115);assert.ok(s.cells[1]);
+    C.advance(s,115,new Date(date.getTime()+15000));assert.equal(s.spawnedAt,115);
+    C.advance(s,130,new Date(date.getTime()+30000));assert.equal(s.spawnedAt,130);
+    const held=C.create(),holdDate=new Date(2026,10,9,12,34);
+    C.configure({...standard,switch_engine_spawn_seconds:1});C.advance(held,0,holdDate);C.advance(held,1,new Date(holdDate.getTime()+1000));
+    assert.ok(C.overlay(held,new Date(holdDate.getTime()+1000)));assert.equal(held.spawnedAt,1);assert.equal(held.cells.reduce((a,b)=>a+b),8);
+    C.configure({...standard,switch_engine_spawn_seconds:0});const disabled=C.create();C.advance(disabled,0,date);disabled.cells.fill(0);disabled.pending=false;
+    C.advance(disabled,30,new Date(date.getTime()+30000));assert.equal(disabled.spawnedAt,0);assert.ok(disabled.cells.every(v=>!v));
+  }finally{Math.random=random;C.configure(standard);}
+});
 
 test('empty grids, still lifes, and oscillators never reset',()=>{
   for(const points of [[],[[10,10],[11,10],[10,11],[11,11]]]){
@@ -124,7 +157,7 @@ test('config supports solid, horizontal, vertical and two-axis gradients',()=>{
 
 test('config rejects invalid timing, clear intervals and color values',()=>{
   const original=require('../cellular-automata-config.json');
-  for(const change of [{time_reverse_frames:-1},{time_reverse_frames:121},{time_reverse_frames:120,update_ms:60000},{update_ms:0},{fade_duration_seconds:0},{clear_every_minutes:7},{color:'green'},{gradient:'diagonal'}])assert.throws(()=>C.configure({...original,...change}),/Invalid|fit within/);
+  for(const change of [{time_reverse_frames:-1},{time_reverse_frames:121},{time_reverse_frames:120,update_ms:60000},{update_ms:0},{fade_duration_seconds:0},{clear_every_minutes:7},{color:'green'},{gradient:'diagonal'},{switch_engine_spawn_seconds:-1},{switch_engine_spawn_seconds:86401},{switch_engine_spawn_seconds:1.5},{switch_engine_spawn_seconds:true}])assert.throws(()=>C.configure({...original,...change}),/Invalid|fit within/);
 });
 
 test('scene stays procedural on upload and rejects unsupported movement',()=>{

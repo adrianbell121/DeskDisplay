@@ -39,11 +39,12 @@ def main():
             assert any(band(rows,31)==expected(f'{v//86400}D {v//3600%24:02}:{v//60%60:02}:{v%60:02}') for v in range(uptime,uptime+3))
             save_png(OUT/'diagnostics.png',rows)
             time.sleep(1.2);later=capture(link);assert band(later,55)!=band(rows,55);assert band(later,31)!=band(rows,31)
+            request(link,'mode next','MODE ');assert 'mode=reverse' in request(link,'status','STATUS ')
             request(link,'mode next','MODE ');assert 'mode=custom' in request(link,'status','STATUS ')
         finally:request(link,'mode custom','MODE ')
     assert get('workspace')==workspace
     after=get('status');assert after['sceneCrc']==before['sceneCrc']==after['savedSceneCrc']
-    (OUT/'diagnostics-verification.json').write_text(json.dumps({'cycle':['Island','automata','diagnostics','Island'],'ip':ip,'postal':postal,'clockAndUptimeAdvance':True,'workspaceUnchanged':True},indent=2))
+    (OUT/'diagnostics-verification.json').write_text(json.dumps({'cycle':['Island','automata','diagnostics','reverse','Island'],'ip':ip,'postal':postal,'clockAndUptimeAdvance':True,'workspaceUnchanged':True},indent=2))
     print('PASS: complete button cycle, IP, ZIP '+postal+', live seconds, advancing uptime, saved Island preserved.')
 
 if __name__=='__main__':main()

@@ -44,7 +44,7 @@ static inline unsigned face_menu_parse(const uint8_t *data,size_t size,face_menu
         if(size-offset<12)return 0;
         const uint8_t *p=data+offset;unsigned id=face_menu_u16(p+2),name=face_menu_u16(p+4);
         size_t length=face_menu_u32(p+8);offset+=12;
-        if(p[0]>4||p[1]||face_menu_u16(p+6)||!id||id>80||!name||name>240||id+name>size-offset)return 0;
+        if(p[0]>5||p[1]||face_menu_u16(p+6)||!id||id>80||!name||name>240||id+name>size-offset)return 0;
         if(!face_menu_text(data+offset,id)||!face_menu_text(data+offset+id,name))return 0;
         face_menu_entry_t *e=&entries[i];memcpy(e->id,data+offset,id);e->id[id]=0;offset+=id;
         memcpy(e->name,data+offset,name);e->name[name]=0;offset+=name;

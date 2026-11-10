@@ -13,7 +13,7 @@ import serial
 from serial.tools import list_ports
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-FACES = ("clock", "island", "automata", "diagnostics")
+FACES = ("clock", "island", "automata", "diagnostics", "reverse")
 
 
 def connect(port):

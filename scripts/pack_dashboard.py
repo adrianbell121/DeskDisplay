@@ -4,7 +4,7 @@ from pathlib import Path
 
 def automata_config(root):
     c=json.loads((root.parent/'cellular-automata-config.json').read_text(encoding='utf-8'))
-    for key,low,high in [('time_reverse_frames',0,120),('update_ms',1,60000),('time_hold_seconds',0,59),('clear_every_minutes',1,60),('fade_after_seconds',0,86400),('fade_duration_seconds',1,86400)]:
+    for key,low,high in [('time_reverse_frames',0,120),('update_ms',1,60000),('time_hold_seconds',0,59),('clear_every_minutes',1,60),('fade_after_seconds',0,86400),('fade_duration_seconds',1,86400),('switch_engine_spawn_seconds',0,86400)]:
         if type(c.get(key)) is not int or not low<=c[key]<=high:raise ValueError('Invalid cellular automata setting: '+key)
     if c['time_reverse_frames']*c['update_ms']+c['time_hold_seconds']*1000>60000:raise ValueError('Time animation lead-in plus hold must fit within one minute')
     if 60%c['clear_every_minutes']:raise ValueError('clear_every_minutes must divide 60')
@@ -16,7 +16,7 @@ def automata_config(root):
 def pack(root,destination):
     config=automata_config(root)
     settings=['/* Generated from cellular-automata-config.json. */','#pragma once']
-    for key in ('time_reverse_frames','update_ms','time_hold_seconds','clear_every_minutes','fade_after_seconds','fade_duration_seconds'):settings.append('#define CA_'+key.upper()+' '+str(config[key]))
+    for key in ('time_reverse_frames','update_ms','time_hold_seconds','clear_every_minutes','fade_after_seconds','fade_duration_seconds','switch_engine_spawn_seconds'):settings.append('#define CA_'+key.upper()+' '+str(config[key]))
     for key in ('color','gradient_end_color'):settings.append('#define CA_'+key.upper()+' 0x'+config[key][1:]+'U')
     settings.append('#define CA_GRADIENT '+str(('none','horizontal','vertical','both').index(config['gradient'])))
     Path(destination).with_name('cellular_automata_settings.h').write_text('\n'.join(settings),encoding='utf-8')

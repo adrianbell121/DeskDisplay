@@ -6,18 +6,21 @@
     "clear_every_minutes": "Allowed integers: 1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30, 60. Clear the underlying game at these minute boundaries, independently of the overlay. 15 = :00/:15/:30/:45; 30 = :00/:30; 60 = :00.",
     "fade_after_seconds": "Integer 0..86400 seconds a game cell must remain continuously alive before dimming. 0 = fade immediately. Death/rebirth resets age; merging the time starts new ages only for previously dead cells.",
     "fade_duration_seconds": "Integer 1..86400 seconds to fade from full brightness to black, then remove the cell from the simulation. Total lifetime = fade_after_seconds + fade_duration_seconds.",
+    "switch_engine_spawn_seconds": "Integer 0..86400 seconds between Corderman eight-cell switch-engine spawns in the original cellular automata face. 0 disables spawning. The first spawn occurs after this interval from opening the face; later spawns use a random location and one of 8 rotations/reflections. Live seed cells merge without clearing the game or resetting existing cell ages. The timer continues during the time overlay and is independent of minute clears. Uses the board's wrapping grid. Does not affect Reverse Life clock.",
     "color": "Hex RGB string #RRGGBB. Solid cell color when gradient is none; otherwise the gradient start color. Example #94e780 = light green. Overrides the cellular widget color picker.",
     "gradient": "Allowed strings: none = solid; horizontal = left to right; vertical = top to bottom; both = average of horizontal and vertical position, a top-left to bottom-right diagonal.",
     "gradient_end_color": "Hex RGB string #RRGGBB used at the far end of the gradient. Ignored when gradient is none. Example #44c6cb = cyan.",
-    "time_reverse_frames": "Integer 0..120 forward Life generations of the incoming clock, played backwards before the minute changes. Lead-in = frames * update_ms; 8 * 500 ms = 4 seconds. 0 disables the lead-in. Lead-in plus hold must fit within 60 seconds."
+    "time_reverse_frames": "Integer 0..120 forward Life generations of the incoming clock, played backwards before the minute changes. Lead-in = frames * update_ms; 8 * 500 ms = 4 seconds. 0 disables the lead-in. Lead-in plus hold must fit within 60 seconds. Applies only to the original cellular automata face.",
+    "reverse_life_clock": "The separate Reverse Life clock uses update_ms, time_hold_seconds, color, gradient and gradient_end_color. Each minute it holds the completed time, clears, and plays ceil((60000 - hold_seconds * 1000) / update_ms) forward Life generations of the NEXT time in reverse. The final clock lands on the minute boundary. No random seeds, merging, aging, or quarter-hour clears apply to this face. Opening it partway through a minute joins the current sequence."
   },
-  "update_ms": 500,
+  "update_ms": 250,
   "time_hold_seconds": 5,
   "clear_every_minutes": 30,
-  "fade_after_seconds": 60,
-  "fade_duration_seconds": 5,
+  "fade_after_seconds": 30,
+  "fade_duration_seconds": 1,
+  "switch_engine_spawn_seconds": 15,
   "color": "#94e780",
-  "gradient": "both",
+  "gradient": "vertical",
   "gradient_end_color": "#44c6cb",
-  "time_reverse_frames": 4
+  "time_reverse_frames": 8
 }

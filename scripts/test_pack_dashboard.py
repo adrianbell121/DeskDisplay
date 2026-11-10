@@ -7,7 +7,7 @@ class DashboardBundleTests(unittest.TestCase):
   config=json.loads((Path(__file__).resolve().parent.parent/'cellular-automata-config.json').read_text())
   with tempfile.TemporaryDirectory() as folder:
    root=Path(folder)
-   for change in [{'time_reverse_frames':-1},{'time_reverse_frames':121},{'time_reverse_frames':120,'update_ms':60000},{'update_ms':0},{'time_hold_seconds':60},{'clear_every_minutes':7},{'fade_duration_seconds':0},{'color':'green'},{'gradient':'diagonal'}]:
+   for change in [{'time_reverse_frames':-1},{'time_reverse_frames':121},{'time_reverse_frames':120,'update_ms':60000},{'update_ms':0},{'time_hold_seconds':60},{'clear_every_minutes':7},{'fade_duration_seconds':0},{'color':'green'},{'gradient':'diagonal'},{'switch_engine_spawn_seconds':-1},{'switch_engine_spawn_seconds':86401},{'switch_engine_spawn_seconds':1.5},{'switch_engine_spawn_seconds':True}]:
     (root/'cellular-automata-config.json').write_text(json.dumps({**config,**change}))
     with self.assertRaises(ValueError):automata_config(root/'preview')
  def test_board_page_has_all_dependencies_and_no_computer_actions(self):
@@ -17,6 +17,9 @@ class DashboardBundleTests(unittest.TestCase):
    compressed=re.findall(r'static const unsigned char asset_\d+\[\]=\{([\d,]+)\};',source)
    assets={name:gzip.decompress(bytes(map(int,content.split(',')))).decode() for name,content in zip(names,compressed)}
    page=assets['index.html']
+   interval=automata_config(root)['switch_engine_spawn_seconds']
+   self.assertIn('#define CA_SWITCH_ENGINE_SPAWN_SECONDS '+str(interval),destination.with_name('cellular_automata_settings.h').read_text())
+   self.assertIn('"switch_engine_spawn_seconds": '+str(interval),page)
    self.assertNotIn('id="ai-open"',page);self.assertNotIn('id="ai-dialog"',page);self.assertNotIn('id="deploy-open"',page)
    self.assertIn('window.BoardEditorBoot=',page);self.assertIn('id="export"',page);self.assertIn('id="widget-import"',page)
    self.assertIn('root.CellularAutomata=api',page)

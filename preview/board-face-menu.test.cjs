@@ -1,6 +1,10 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const M=require('./board-face-menu.js'),S=require('./scene.js');
 const sample=()=>[{id:'island',name:'Island',mode:'island'},{id:'life',name:'Game',mode:'automata'},{id:'diag',name:'Diagnostics',mode:'diagnostics'}];
+test('the separate reverse clock is a fourth playable face',()=>{
+  const faces=M.upsert(sample(),{id:'builtin:reverse',name:'Reverse Life clock',mode:'reverse'});
+  assert.equal(faces.length,4);assert.equal(faces[3].mode,'reverse');assert.deepEqual(faces.slice(0,3),sample());
+});
 test('drag ordering works in both directions without modifying the saved snapshot',()=>{
   const initial=sample(),before=JSON.stringify(initial);
   assert.deepEqual(M.reorder(initial,'island','life').map(f=>f.id),['life','island','diag']);

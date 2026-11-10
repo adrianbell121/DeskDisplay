@@ -15,6 +15,7 @@ int main(void)
     memcpy(data,"FMN1",4);face_menu_put16(data+4,2);
     size_t second=8+entry(data+8,0,"a","Saved island",scene,8),size=second+entry(data+second,3,"b","Cellular automata",NULL,0);
     assert(face_menu_parse(data,size,faces,valid_scene)==2);assert(!strcmp(faces[0].name,"Saved island"));assert(faces[0].scene==data+second-8);assert(faces[1].kind==3);
+    data[second]=5;assert(face_menu_parse(data,size,faces,valid_scene)==2&&faces[1].kind==5);data[second]=3;
     for(size_t n=0;n<size;n++)assert(!face_menu_parse(data,n,faces,valid_scene));
     assert(!face_menu_parse(NULL,size,faces,valid_scene));assert(!face_menu_parse(data,size+1,faces,valid_scene));
     const uint8_t unicode[]={0x49,0xe2,0x80,0x94,0xf0,0x9f,0x8c,0xb4};
@@ -22,7 +23,7 @@ int main(void)
     assert(face_menu_text(unicode,sizeof(unicode)));assert(!face_menu_text(bad_utf8,sizeof(bad_utf8)));assert(!face_menu_text(overlong,sizeof(overlong)));
     for(unsigned test=0;test<8;test++){
         memcpy(bad,data,size);
-        switch(test){case 0:bad[0]='X';break;case 1:bad[4]=33;break;case 2:bad[6]=1;break;case 3:bad[8]=5;break;case 4:bad[10]=81;break;case 5:bad[second+12]='a';break;case 6:face_menu_put32(bad+second+8,UINT32_MAX);break;case 7:bad[second-8]='X';break;}
+        switch(test){case 0:bad[0]='X';break;case 1:bad[4]=33;break;case 2:bad[6]=1;break;case 3:bad[8]=6;break;case 4:bad[10]=81;break;case 5:bad[second+12]='a';break;case 6:face_menu_put32(bad+second+8,UINT32_MAX);break;case 7:bad[second-8]='X';break;}
         assert(!face_menu_parse(bad,size,faces,valid_scene));
     }
     puts("Face menu decoder checks passed");return 0;

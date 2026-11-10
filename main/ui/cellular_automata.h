@@ -7,7 +7,7 @@
 typedef struct {
     uint64_t cells[64];
     int64_t born[4096];
-    int64_t minute_ms, updated_ms, overlay_at_ms;
+    int64_t minute_ms, updated_ms, overlay_at_ms, spawned_ms;
     bool overlay_pending;
     uint64_t frames[][64];
 } cellular_automata_t;
@@ -28,6 +28,27 @@ static inline void cellular_automata_merge(cellular_automata_t *s,const uint64_t
         uint64_t added=overlay[y]&~s->cells[y];
         for(unsigned x=0;x<64;x++)if((added>>x)&1)s->born[y*64+x]=now_ms+1;
         s->cells[y]|=overlay[y];
+    }
+}
+
+static inline bool cellular_automata_spawn_due(cellular_automata_t *s,int64_t now_ms,unsigned interval_seconds)
+{
+    if(!interval_seconds||now_ms-s->spawned_ms<(int64_t)interval_seconds*1000)return false;
+    s->spawned_ms=now_ms;return true;
+}
+
+static inline void cellular_automata_switch_engine(cellular_automata_t *s,unsigned x,unsigned y,unsigned orientation,int64_t now_ms)
+{
+    // Corderman's seed: https://conwaylife.com/patterns/switchengine.cells
+    static const int points[8][2]={{1,0},{3,0},{0,1},{1,2},{4,2},{3,3},{4,3},{5,3}};
+    for(unsigned i=0;i<8;i++){
+        int dx=points[i][0],dy=points[i][1];
+        if(orientation&4)dx=-dx;
+        for(unsigned turn=0;turn<(orientation&3);turn++){int t=dx;dx=-dy;dy=t;}
+        unsigned tx=(unsigned)((int)x+dx+64)%64,ty=(unsigned)((int)y+dy+64)%64;
+        uint64_t bit=UINT64_C(1)<<tx;
+        if(!(s->cells[ty]&bit))s->born[ty*64+tx]=now_ms+1;
+        s->cells[ty]|=bit;
     }
 }
 

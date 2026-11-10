@@ -87,6 +87,7 @@ def main():
             assert len(seen)>=min(3,len(unique)),('Reverse frames were not observed',seen)
             print('PASS: reverse animation, clean clock at minute change, overlay hold and game after merge.',flush=True)
             request(link,'mode next','MODE ');assert 'mode=diagnostics' in request(link,'status','STATUS ')
+            request(link,'mode next','MODE ');assert 'mode=reverse' in request(link,'status','STATUS ')
             request(link,'mode next','MODE ');assert 'mode=custom' in request(link,'status','STATUS ')
             save_png(OUT/'restored-island.png',capture(link))
         finally:request(link,'mode custom','MODE ')

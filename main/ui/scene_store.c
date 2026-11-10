@@ -34,7 +34,7 @@ static face_menu_entry_t *faces;
 static unsigned face_count;
 static atomic_int face_index;
 static uint32_t menu_crc;
-static const char *face_modes[]={"custom","clock","island","automata","diagnostics"};
+static const char *face_modes[]={"custom","clock","island","automata","diagnostics","reverse"};
 typedef struct { uint32_t magic, sequence, size, crc; } record_t;
 static uint32_t crc32(const uint8_t *data, size_t size)
 {
@@ -91,10 +91,11 @@ static esp_err_t migrate_faces(void)
 {
     uint8_t *data=allocate(active_size+256);face_menu_entry_t *entries=allocate(FACE_MENU_LIMIT*sizeof(*entries));
     if(!data||!entries){free(data);free(entries);return ESP_ERR_NO_MEM;}
-    memcpy(data,"FMN1\3\0\0\0",8);size_t at=8;
+    memcpy(data,"FMN1\4\0\0\0",8);size_t at=8;
     at+=write_face(data+at,active?0:2,active?"saved-scene":"builtin:island",active?"Saved face":"Island",active,active_size);
     at+=write_face(data+at,3,"builtin:automata","Cellular automata",NULL,0);
     at+=write_face(data+at,4,"builtin:diagnostics","Diagnostics",NULL,0);
+    at+=write_face(data+at,5,"builtin:reverse","Reverse Life clock",NULL,0);
     unsigned count=face_menu_parse(data,at,entries,scene_player_validate);
     if(!count){free(data);free(entries);return ESP_ERR_INVALID_ARG;}
     install_menu(data,at,entries,count,NULL);
@@ -241,8 +242,8 @@ esp_err_t scene_store_faces_update(const char *json,size_t size)
     cJSON_ArrayForEach(item,items){
         cJSON *id=cJSON_GetObjectItemCaseSensitive(item,"id"),*name=cJSON_GetObjectItemCaseSensitive(item,"name"),*mode=cJSON_GetObjectItemCaseSensitive(item,"mode"),*scene=cJSON_GetObjectItemCaseSensitive(item,"scene");
         if(!cJSON_IsString(id)||!strlen(id->valuestring)||strlen(id->valuestring)>80||!cJSON_IsString(name)||!strlen(name->valuestring)||strlen(name->valuestring)>240||!cJSON_IsString(mode))goto done;
-        unsigned kind=0;while(kind<5&&strcmp(mode->valuestring,face_modes[kind]))kind++;
-        if(kind==5||(kind?(scene&&(!cJSON_IsString(scene)||scene->valuestring[0])):(!cJSON_IsString(scene)||(strlen(scene->valuestring)&1)||strlen(scene->valuestring)>SCENE_MAX_BYTES*2)))goto done;
+        unsigned kind=0;while(kind<6&&strcmp(mode->valuestring,face_modes[kind]))kind++;
+        if(kind==6||(kind?(scene&&(!cJSON_IsString(scene)||scene->valuestring[0])):(!cJSON_IsString(scene)||(strlen(scene->valuestring)&1)||strlen(scene->valuestring)>SCENE_MAX_BYTES*2)))goto done;
         length+=12+strlen(id->valuestring)+strlen(name->valuestring)+(kind?0:strlen(scene->valuestring)/2);
         if(length>FACE_MENU_MAX_BYTES){err=ESP_ERR_INVALID_SIZE;goto done;}
     }

@@ -45,7 +45,7 @@ speaker test. Close the serial monitor before another task uses the USB port.
   keeps its editable design in the library. **Show** displays a saved entry.
   Editor previews are temporary until you choose **Add** or **Update** in this menu.
 - Tap **BOOT** to cycle through that saved menu. Its initial order is your saved
-  Island face, cellular automata, and Diagnostics.
+  Island face, cellular automata, Diagnostics, and Reverse Life clock.
   Diagnostics shows the Wi-Fi IP (or OFFLINE), uptime, saved weather location ZIP,
   and live HH:MM:SS AM/PM. An unavailable ZIP displays -----; leading zeros are kept.
   Without a saved scene, the built-in Island face is used. The game advances every
@@ -53,7 +53,12 @@ speaker test. Close the serial monitor before another task uses the USB port.
   merges into the continuously running game. The grid clears every quarter
   hour. Old cells fade after 30 seconds and expire at 150 seconds. Timing and colors
   are in `cellular-automata-config.json` (rebuild/flash after editing).
+  `switch_engine_spawn_seconds` adds a randomly placed and oriented switch engine
+  every 15 seconds in this original game; set it to 0 to disable spawning.
 - Hold **BOOT** for one second to play the speaker test.
+- **Reverse Life clock** holds the time for the configured five seconds, clears,
+  then plays the next clock's Life history backward until it forms on the next
+  minute. It uses the shared update speed and colors. See the [face menu guide](docs/face-menu.md).
 - Press **RST** to restart on the first saved menu face at 25% brightness.
 
 ## Project layout

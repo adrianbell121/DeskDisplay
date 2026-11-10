@@ -3,14 +3,14 @@
   const I=typeof module!=='undefined'&&module.exports?require('./island-assets.js'):root.IslandAssets;
   let config=typeof module!=='undefined'&&module.exports?require('../cellular-automata-config.json'):null;
   function configure(value){
-    for(const [key,low,high]of [['time_reverse_frames',0,120],['update_ms',1,60000],['time_hold_seconds',0,59],['clear_every_minutes',1,60],['fade_after_seconds',0,86400],['fade_duration_seconds',1,86400]])if(!Number.isInteger(value[key])||value[key]<low||value[key]>high)throw new Error('Invalid cellular automata setting: '+key);
+    for(const [key,low,high]of [['time_reverse_frames',0,120],['update_ms',1,60000],['time_hold_seconds',0,59],['clear_every_minutes',1,60],['fade_after_seconds',0,86400],['fade_duration_seconds',1,86400],['switch_engine_spawn_seconds',0,86400]])if(!Number.isInteger(value[key])||value[key]<low||value[key]>high)throw new Error('Invalid cellular automata setting: '+key);
     if(value.time_reverse_frames*value.update_ms+value.time_hold_seconds*1000>60000)throw new Error('Time animation lead-in plus hold must fit within one minute');
     if(60%value.clear_every_minutes||!['none','horizontal','vertical','both'].includes(value.gradient)||!['color','gradient_end_color'].every(key=>/^#[0-9a-f]{6}$/i.test(value[key])))throw new Error('Invalid cellular automata clear interval or colors');
     config=value;
   }
   if(config)configure(config);
   const states=new WeakMap();
-  function create(){return {cells:new Uint8Array(4096),born:new Float64Array(4096),minuteMs:-1,overlayAt:-1,pending:false,seconds:0};}
+  function create(){return {cells:new Uint8Array(4096),born:new Float64Array(4096),minuteMs:-1,overlayAt:-1,pending:false,seconds:0,spawnedAt:null};}
   function clockCells(date){
     const clock=I.raster({islandPart:0,w:49,h:13,color:'#ffffff',secondary:'#ffffff',format:'12',speed:1},0,date);
     const cells=new Uint8Array(4096);
@@ -24,6 +24,15 @@
   }
   function merge(state,cells,seconds){
     for(let i=0;i<4096;i++)if(cells[i]){if(!state.cells[i])state.born[i]=seconds+1;state.cells[i]=1;}
+  }
+  function spawnSwitchEngine(state,x,y,orientation,seconds){
+    const points=[[1,0],[3,0],[0,1],[1,2],[4,2],[3,3],[4,3],[5,3]];
+    for(let [dx,dy]of points){
+      if(orientation&4)dx=-dx;
+      for(let turn=0;turn<(orientation&3);turn++)[dx,dy]=[-dy,dx];
+      const i=((y+dy+64)%64)*64+(x+dx+64)%64;
+      if(!state.cells[i])state.born[i]=seconds+1;state.cells[i]=1;
+    }
   }
   function target(wall){
     const minute=Math.floor(wall/60000)*60000,phase=wall-minute;
@@ -54,6 +63,7 @@
     }
   }
   function advance(state,seconds,date){
+    if(state.spawnedAt===null)state.spawnedAt=seconds;
     age(state,seconds);
     const wall=date.getTime(),minute=Math.floor(wall/60000)*60000,initial=state.minuteMs<0,changed=state.minuteMs!==minute;
     if(changed){
@@ -71,6 +81,9 @@
       state.frames=clockFrames(new Date(next));state.overlayAt=next;state.pending=true;
     }
     if(state.pending&&wall>=state.overlayAt+config.time_hold_seconds*1000){merge(state,state.frames[0],seconds);state.pending=false;}
+    if(config.switch_engine_spawn_seconds&&seconds-state.spawnedAt>=config.switch_engine_spawn_seconds){
+      spawnSwitchEngine(state,Math.floor(Math.random()*64),Math.floor(Math.random()*64),Math.floor(Math.random()*8),seconds);state.spawnedAt=seconds;
+    }
     age(state,seconds);
   }
   function cellColor(x,y,ageSeconds){
@@ -93,5 +106,5 @@
     }
     return out;
   }
-  const api={configure,create,clockCells,clockFrames,merge,target,overlay,step,age,advance,cellColor,reset,raster};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.CellularAutomata=api;
+  const api={configure,create,clockCells,clockFrames,merge,spawnSwitchEngine,target,overlay,step,age,advance,cellColor,reset,raster};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.CellularAutomata=api;
 })(typeof globalThis!=='undefined'?globalThis:this);

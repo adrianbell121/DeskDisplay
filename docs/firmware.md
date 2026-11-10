@@ -123,7 +123,7 @@ USB device; use `--port COM4` before the command when multiple devices are prese
   faces, remove entries, and drag to reorder them in the board dashboard's
   **BOOT button menu**. Changes persist immediately. Removing an entry keeps its
   editable library design. The initial order is saved Island, cellular automata,
-  then Diagnostics; firmware upgrades preserve the previous saved scene.
+  then Diagnostics and Reverse Life clock; firmware upgrades preserve the previous saved scene.
   Without an uploaded scene, this uses the built-in Island. The game advances
   every 250 ms. Island-style time animates on a separate overlay: reverse Life frames lead
   into the next minute, then the clean clock holds for five seconds. Its live cells
@@ -132,9 +132,17 @@ USB device; use `--port COM4` before the command when multiple devices are prese
   30 seconds, then expire at 150 seconds. Shared timing, colors and gradient direction
   are in `cellular-automata-config.json`; rebuild/flash after editing.
   USB `mode automata` opens the game; `mode next` runs the same cycle as BOOT.
+  `switch_engine_spawn_seconds` inserts a randomly positioned and oriented
+  Corderman switch engine every 15 seconds by default; 0 disables it. The first
+  spawn waits one full interval after opening the game. Spawns merge into the
+  existing grid, including during the clock overlay; they do not reset the game.
+  This setting does not affect Reverse Life clock. Rebuild/flash after editing it.
   `mode diagnostics` opens IP/uptime/five-digit ZIP/live HH:MM:SS AM/PM. The ZIP
   comes from the selected saved weather location, falling back to the default face.
   Unknown ZIPs show -----; disconnected Wi-Fi shows OFFLINE.
+  `mode reverse` opens the separate Reverse Life clock: a configured clock hold,
+  clear, then an entire minute's backward Life playback forming the next time
+  precisely on the minute. It shares update/hold/color settings with the game.
 - Hold **BOOT** for one second: play the speaker test once.
 - **RST**: restart on the first saved menu entry at 25% brightness.
 - `test`: an eight-second red/green/blue/gray test with asymmetric white corner

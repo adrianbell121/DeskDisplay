@@ -10,6 +10,7 @@
 #include "scene_player.h"
 #include "scene_store.h"
 #include "cellular_automata.h"
+#include "reverse_clock.h"
 #include "desk_ui.h"
 #include "dashboard.h"
 #include "network.h"
@@ -17,10 +18,11 @@
 #include "esp_timer.h"
 #include "lvgl.h"
 
-enum { CLOCK, ISLAND, CUSTOM, AUTOMATA, DIAGNOSTICS, FACE_COUNT, TEST = FACE_COUNT };
-static const char *names[] = {"clock", "island", "custom", "automata", "diagnostics", "test"};
+enum { CLOCK, ISLAND, CUSTOM, AUTOMATA, DIAGNOSTICS, REVERSE, FACE_COUNT, TEST = FACE_COUNT };
+static const char *names[] = {"clock", "island", "custom", "automata", "diagnostics", "reverse", "test"};
 static int mode = ISLAND;
 static cellular_automata_t *automata;
+static reverse_clock_t *reverse_clock;
 static int64_t test_until;
 static uint16_t pixels[64 * 64] __attribute__((aligned(4)));
 static lv_obj_t *canvas, *heading, *detail, *footer;
@@ -95,6 +97,7 @@ static void render(lv_timer_t *timer)
     if (mode == ISLAND) island_face_render(pixels, &t, valid, now_us);
     if (mode == CUSTOM) scene_player_render(pixels, &t, valid, now_us / 1000,(int64_t)frame_time.tv_sec*1000000+frame_time.tv_usec);
     if (mode == AUTOMATA) cellular_automata_render(&automata,pixels,0,0,64,64,rgb(148,231,128),&t,valid,now_us/1000,(int64_t)frame_time.tv_sec*1000+frame_time.tv_usec/1000);
+    if (mode == REVERSE) reverse_clock_render(&reverse_clock,pixels,valid,(int64_t)frame_time.tv_sec*1000+frame_time.tv_usec/1000);
     if (mode == DIAGNOSTICS) {
         static char rows[8][32];
         if(now!=last_second){char ip[32]="OFFLINE",zip[6];
@@ -149,6 +152,7 @@ bool desk_ui_mode(const char *name)
         if (i == CUSTOM && !scene_player_ready()) return false;
         if (i == CUSTOM) scene_player_reset_automata();
         if (i == AUTOMATA) {free(automata);automata=NULL;}
+        if (i == REVERSE) {free(reverse_clock);reverse_clock=NULL;}
         mode = i; last_second = -1; return true;
     }
     return false;
@@ -156,7 +160,7 @@ bool desk_ui_mode(const char *name)
 void desk_ui_next(void)
 {
     if(scene_store_faces_next())return;
-    desk_ui_mode(mode==AUTOMATA?"diagnostics":mode==DIAGNOSTICS?(scene_player_ready()?"custom":"island"):"automata");
+    desk_ui_mode(mode==AUTOMATA?"diagnostics":mode==DIAGNOSTICS?"reverse":mode==REVERSE?(scene_player_ready()?"custom":"island"):"automata");
 }
 void desk_ui_custom_changed(void) { mode = CUSTOM; last_second = -1; }
 const char *desk_ui_mode_name(void) { return names[mode]; }
